@@ -1,0 +1,187 @@
+name: Bug Tests — Sandbox
+
+# Runs tests under tests/bugs/ — the staging area for unverified bug
+# reproducers. **Normal red-on-fail CI semantics**: a failing test fails
+# the workflow. The bug is confirmed reproducible AND the PR's CI is
+# red — that's the explicit signal the bug isn't fixed yet.
+#
+# When the bug is fixed:
+#   1. The test in tests/bugs/ starts passing → this workflow goes green
+#   2. Move the test out of tests/bugs/ into the appropriate invariant
+#      folder (tests/auth/, tests/apps/, …) and tag with @spec
+#   3. e2e-sandbox.yml's chromium suite picks it up via the normal path
+#
+# Artifacts (trace, screenshots, HTML report) upload on every run for
+# triage regardless of outcome.
+
+on:
+  push:
+    paths:
+      - "tests/bugs/**.spec.ts"
+      - ".github/workflows/bug-tests-run.yml"
+  pull_request:
+    paths:
+      - "tests/bugs/**.spec.ts"
+      - ".github/workflows/bug-tests-run.yml"
+  workflow_dispatch:
+    inputs:
+      test_files:
+        description: "Specific test files to run (space-separated, relative to repo root). Empty = all under tests/bugs/."
+        required: false
+        default: ""
+
+concurrency:
+  group: bug-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bug-tests:
+    name: tests/bugs (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      # Pulls tests/bugs/ back into discovery — playwright.config.ts skips it
+      # by default (so the main suite stays green on staging-test failures);
+      # this workflow is the one place that explicitly opts in.
+      PW_INCLUDE_STAGING: "1"
+      FOSS_BASE_URL: ${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}
+      FOSS_USER:     ${{ secrets.SANDBOX_FOSS_USER }}
+      FOSS_PASS:     ${{ secrets.SANDBOX_FOSS_PASS }}
+      NORMAL_USER:   ${{ secrets.SANDBOX_NORMAL_USER }}
+      NORMAL_PASS:   ${{ secrets.SANDBOX_NORMAL_PASS }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need at least 2 commits so `git diff $BEFORE $SHA` can resolve
+          # the parent commit when scoping target test files on push events.
+          # With the default fetch-depth: 1, the diff returns nothing and
+          # the workflow incorrectly concludes "no bug-test files in scope".
+          fetch-depth: 2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (chromium only)
+        run: npm run install:browsers:ci
+
+      - name: Required secrets present
+        run: |
+          if [ -z "$FOSS_USER" ] || [ -z "$FOSS_PASS" ]; then
+            echo "::error::SANDBOX_FOSS_USER / SANDBOX_FOSS_PASS not set." \
+                 "Configure under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      # Pick which test files to run:
+      #   * pull_request → only the tests/bugs/**.spec.ts files this PR touches
+      #   * push         → only the files this commit touches
+      #   * workflow_dispatch → operator's `test_files` input; empty = all
+      # Why not always-run-all: when 10 bug tests accumulate in tests/bugs/, every
+      # PR adding one shouldn't burn CI minutes on the other nine.
+      - name: Resolve target test files
+        id: targets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          INPUT_FILES: ${{ github.event.inputs.test_files }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" = "workflow_dispatch" ] && [ -n "$INPUT_FILES" ]; then
+            FILES="$INPUT_FILES"
+            REASON="workflow_dispatch input"
+          elif [ "$EVENT" = "pull_request" ]; then
+            FILES=$(gh pr view "$PR_NUMBER" --json files --jq \
+              '[.files[].path | select(test("^tests/bugs/.*\\.spec\\.ts$"))] | join(" ")')
+            REASON="changed in PR #$PR_NUMBER"
+          elif [ "$EVENT" = "push" ] && [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            FILES=$(git diff --name-only "$BEFORE" "$SHA" \
+              | grep -E '^tests/bugs/.*\.spec\.ts$' \
+              | tr '\n' ' ' || true)
+            REASON="changed between $BEFORE..$SHA"
+          else
+            # workflow_dispatch with no input, OR first-push edge case, OR
+            # the workflow file itself changed (no spec file changes). Run all.
+            FILES="tests/bugs/"
+            REASON="default (run all of tests/bugs/)"
+          fi
+
+          # Empty resolved list → either path filter triggered on a workflow-only
+          # change, or the diff didn't match. Don't run anything in that case.
+          FILES_TRIMMED=$(echo "$FILES" | xargs)
+          if [ -z "$FILES_TRIMMED" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "files=" >> "$GITHUB_OUTPUT"
+            echo "reason=no bug-test files in scope ($REASON)" >> "$GITHUB_OUTPUT"
+            echo "::notice::No bug-test files in scope; skipping playwright."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "files=$FILES_TRIMMED" >> "$GITHUB_OUTPUT"
+            echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+            echo "::notice::Will run: $FILES_TRIMMED ($REASON)"
+          fi
+
+      - name: Run bug tests (chromium)
+        id: bug_tests
+        if: steps.targets.outputs.skip != 'true'
+        run: |
+          echo "Running: ${{ steps.targets.outputs.files }}"
+          echo "Reason:  ${{ steps.targets.outputs.reason }}"
+          npx playwright test ${{ steps.targets.outputs.files }} --project=chromium --reporter=list
+
+      - name: Outcome summary
+        if: always()
+        run: |
+          if [ "${{ steps.targets.outputs.skip }}" = "true" ]; then
+            {
+              echo "## No bug tests in scope"
+              echo ""
+              echo "${{ steps.targets.outputs.reason }} — playwright not invoked."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.bug_tests.outcome }}" = "success" ]; then
+            {
+              echo "## ✅ Bug tests passed"
+              echo ""
+              echo "Ran: \`${{ steps.targets.outputs.files }}\`"
+              echo ""
+              echo "The bug appears to be fixed (or the reproducer regressed). Next step: move the spec out of \`tests/bugs/\` into the appropriate invariant folder and add a \`@spec\` tag pointing at the requirement it now pins."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## ❌ Bug tests failed"
+              echo ""
+              echo "Ran: \`${{ steps.targets.outputs.files }}\`"
+              echo ""
+              echo "Bug is confirmed reproducible against \`$FOSS_BASE_URL\`. The PR's CI is red because the underlying issue hasn't been fixed yet — that's the explicit signal."
+              echo ""
+              echo "See the artifacts below for trace.zip + screenshots."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bug-tests-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload traces / screenshots / videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bug-tests-results
+          path: test-results/
+          retention-days: 7

@@ -1,0 +1,49 @@
+name: ZAP Baseline (Sandbox)
+
+# OWASP ZAP baseline scan against the sandbox deployment. Catches missing
+# security headers, common info-disclosure surfaces (admin endpoints,
+# directory listings, debug pages), CSP gaps, and a curated set of low-FP
+# active checks. Read-only — never sends mutations.
+#
+# Schedule: Sunday 06:00 UTC. Runs against the public sandbox; no creds
+# needed for the surface ZAP probes.
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Override scan target URL"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write     # zaproxy/action-baseline opens issues for findings
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine scan target
+        id: target
+        run: |
+          TARGET="${{ inputs.target || vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}"
+          echo "url=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Scanning: $TARGET"
+
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: ${{ steps.target.outputs.url }}
+          # Don't fail the workflow on warnings — baseline is informational.
+          # Remove `cmd_options: '-l WARN'` to surface low-confidence findings.
+          cmd_options: "-a -j -m 10 -T 20"
+          fail_action: false
+          allow_issue_writing: true
+          artifact_name: zap-baseline-report

@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit credentials
+.env
+.env.local
+.env.*.local
+
+# Playwright output
+playwright-report/
+test-results/
+.playwright/
+
+# Auth state snapshots (may contain session tokens)
+**/*storage-state*.json
+**/*auth-state*.json
+
+# TypeScript
+*.js.map
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / agent caches
+.vscode/
+.idea/
+# .claude/ holds local Claude Code state + caches; we want to share skills
+# (commit them) but keep everything else local. Pattern: ignore everything
+# directly under .claude/, then un-ignore the skills/ subtree.
+.claude/*
+!.claude/skills/
+*.swp

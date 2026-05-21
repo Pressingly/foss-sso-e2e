@@ -1,0 +1,35 @@
+name: Secret scan (gitleaks)
+
+# Catches accidentally-committed secrets (API keys, .env values, tokens) in
+# diffs before they reach main. Runs on every push and PR. Free for public
+# repos and self-hosted; private repos may need a license token — see
+# https://github.com/gitleaks/gitleaks-action for current terms.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the action can scan rename/move history accurately.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Uncomment if scanning a private repo (requires a paid license key
+          # added to repo secrets):
+          # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

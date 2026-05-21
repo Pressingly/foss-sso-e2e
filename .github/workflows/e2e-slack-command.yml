@@ -1,0 +1,213 @@
+name: E2E — Slack ChatOps (Sandbox)
+
+# ChatOps entrypoint. Manual and API-triggerable via workflow_dispatch.
+# Slack can call the GitHub workflow-dispatch API directly (no relay server).
+#
+# Supported commands:
+#   e2e all
+#   e2e outline
+#   e2e penpot
+#   e2e twenty
+#   e2e pm (or plane)
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "ChatOps command (e.g. e2e all, e2e outline, e2e penpot, e2e surfsense, e2e twenty, e2e pm)"
+        required: true
+        default: "e2e all"
+      slack_user_id:
+        description: "Optional Slack user ID for allowlist checks"
+        required: false
+        default: ""
+      slack_channel_id:
+        description: "Optional Slack channel ID for allowlist checks"
+        required: false
+        default: ""
+
+concurrency:
+  group: e2e-slack-command-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      FOSS_BASE_URL: ${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}
+      FOSS_USER: ${{ secrets.SANDBOX_FOSS_USER }}
+      FOSS_PASS: ${{ secrets.SANDBOX_FOSS_PASS }}
+      NORMAL_USER: ${{ secrets.SANDBOX_NORMAL_USER }}
+      NORMAL_PASS: ${{ secrets.SANDBOX_NORMAL_PASS }}
+      PLANE_ADMIN_USER: ${{ secrets.SANDBOX_PLANE_ADMIN_USER }}
+      PLANE_ADMIN_PASS: ${{ secrets.SANDBOX_PLANE_ADMIN_PASS }}
+
+      # Optional guardrails (repo variables):
+      #   SLACK_ALLOWED_USER_IDS=U123,U456
+      #   SLACK_ALLOWED_CHANNEL_IDS=C123,C456
+      SLACK_ALLOWED_USER_IDS: ${{ vars.SLACK_ALLOWED_USER_IDS }}
+      SLACK_ALLOWED_CHANNEL_IDS: ${{ vars.SLACK_ALLOWED_CHANNEL_IDS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve payload + validate command
+        id: resolve
+        env:
+          INPUT_COMMAND: ${{ inputs.command }}
+          INPUT_USER_ID: ${{ inputs.slack_user_id }}
+          INPUT_CHANNEL_ID: ${{ inputs.slack_channel_id }}
+        run: |
+          set -euo pipefail
+
+          CMD_RAW="$INPUT_COMMAND"
+          USER_ID="$INPUT_USER_ID"
+          CHANNEL_ID="$INPUT_CHANNEL_ID"
+
+          CMD="$(printf '%s' "$CMD_RAW" | tr '[:upper:]' '[:lower:]' | xargs)"
+          if [ -z "$CMD" ]; then
+            echo "::error::Missing command. Provide inputs.command (workflow_dispatch)."
+            exit 1
+          fi
+
+          USAGE_HINT="Usage hint: all | outline | penpot | surfsense | twenty | pm(plane)"
+
+          if ! printf '%s' "$CMD" | grep -Eq '^e2e [a-z0-9._/-]+$'; then
+            echo "::error::Invalid command format: '$CMD'. Use: e2e <target>. $USAGE_HINT"
+            exit 1
+          fi
+
+          if [ -n "${SLACK_ALLOWED_USER_IDS:-}" ] && [ -n "$USER_ID" ]; then
+            case ",$SLACK_ALLOWED_USER_IDS," in
+              *",$USER_ID,"*) ;;
+              *)
+                echo "::error::Slack user '$USER_ID' is not allowed to trigger this workflow."
+                exit 1
+                ;;
+            esac
+          fi
+
+          if [ -n "${SLACK_ALLOWED_CHANNEL_IDS:-}" ] && [ -n "$CHANNEL_ID" ]; then
+            case ",$SLACK_ALLOWED_CHANNEL_IDS," in
+              *",$CHANNEL_ID,"*) ;;
+              *)
+                echo "::error::Slack channel '$CHANNEL_ID' is not allowed to trigger this workflow."
+                exit 1
+                ;;
+            esac
+          fi
+
+          TARGET="${CMD#e2e }"
+          case "$TARGET" in
+            all) TEST_ARG="" ;;
+            outline) TEST_ARG="tests/apps/outline.spec.ts" ;;
+            penpot) TEST_ARG="tests/apps/penpot.spec.ts" ;;
+            pm|plane) TEST_ARG="tests/apps/pm.spec.ts" ;;
+            surfsense) TEST_ARG="tests/apps/surfsense.spec.ts" ;;
+            twenty) TEST_ARG="tests/apps/twenty.spec.ts" ;;
+            *)
+              echo "::error::Unknown target '$TARGET'. $USAGE_HINT"
+              exit 1
+              ;;
+          esac
+
+          echo "command=$CMD" >> "$GITHUB_OUTPUT"
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "test_arg=$TEST_ARG" >> "$GITHUB_OUTPUT"
+          echo "user_id=$USER_ID" >> "$GITHUB_OUTPUT"
+          echo "channel_id=$CHANNEL_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (chromium only)
+        run: npm run install:browsers:ci
+
+      - name: Sanity — required secrets present
+        run: |
+          if [ -z "$FOSS_USER" ] || [ -z "$FOSS_PASS" ]; then
+            echo "::error::SANDBOX_FOSS_USER / SANDBOX_FOSS_PASS not set."
+            exit 1
+          fi
+
+      - name: Run Playwright (mapped command)
+        run: |
+          set -euo pipefail
+          TEST_ARG="${{ steps.resolve.outputs.test_arg }}"
+          if [ -z "$TEST_ARG" ]; then
+            npx playwright test --project=chromium
+          else
+            npx playwright test "$TEST_ARG" --project=chromium
+          fi
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-slack-command
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload failure traces / videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-slack-command
+          path: test-results/
+          retention-days: 7
+
+      - name: Notify Slack on result
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER: ${{ github.server_url }}
+          STATUS: ${{ job.status }}
+          CMD: ${{ steps.resolve.outputs.command }}
+          TARGET: ${{ steps.resolve.outputs.target }}
+          USER_ID: ${{ steps.resolve.outputs.user_id }}
+          CHANNEL_ID: ${{ steps.resolve.outputs.channel_id }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set — skipping Slack notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${SHA:0:7}"
+          RUN_URL="$SERVER/$REPO/actions/runs/$RUN_ID"
+          WHO="user=${USER_ID:-unknown} channel=${CHANNEL_ID:-unknown}"
+
+          if [ "$STATUS" = "success" ]; then
+            MESSAGE="E2E command passed
+            command: $CMD
+            target: $TARGET
+            trigger: $WHO
+            branch: $REF @ $SHORT_SHA
+            $RUN_URL"
+          else
+            MESSAGE="E2E command failed
+            command: $CMD
+            target: $TARGET
+            trigger: $WHO
+            branch: $REF @ $SHORT_SHA
+            $RUN_URL"
+          fi
+
+          curl -sS -X POST -H "Content-Type: application/json" \
+            --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"

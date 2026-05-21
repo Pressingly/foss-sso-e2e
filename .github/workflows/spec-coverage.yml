@@ -1,0 +1,70 @@
+name: Spec coverage audit
+
+# Verifies every requirement in the upstream sso-rules-moneta openspec
+# contract is either covered by a `// @spec module#slug` tag in a test
+# file OR explicitly listed in docs/spec-coverage-deferred.md.
+#
+# Failure mode this catches: a new requirement lands upstream (in
+# awais786/sso-rules-moneta) but no one updates this suite. The PR-time
+# job fails so the gap is visible before merge; the scheduled job catches
+# upstream drift between PRs.
+
+on:
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'docs/spec-coverage*.md'
+      - 'scripts/check-spec-coverage.sh'
+      - '.github/workflows/spec-coverage.yml'
+  push:
+    branches: [main]
+  schedule:
+    # Daily 09:00 UTC — picks up upstream spec additions even when no PR
+    # is open on this repo.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spec-coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run coverage audit
+        id: audit
+        run: |
+          set -o pipefail
+          # No SPEC_DIR — script fetches from GitHub raw.
+          if bash scripts/check-spec-coverage.sh | tee coverage-output.md; then
+            echo "audit_exit=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "audit_exit=$?" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to job summary
+        if: always()
+        run: cat coverage-output.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post sticky PR comment
+        if: |
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          always()
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: sso-spec-coverage
+          path: coverage-output.md
+
+      - name: Fail on missing coverage
+        if: steps.audit.outputs.audit_exit != '0'
+        run: |
+          echo "::error::Spec contract has requirements not covered by a test tag or deferred entry. See the table above."
+          exit 1

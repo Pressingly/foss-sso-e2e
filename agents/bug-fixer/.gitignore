@@ -1,0 +1,10 @@
+.env
+state.json
+state.json.tmp
+
+# Python / packaging artifacts
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/

@@ -1,0 +1,179 @@
+name: E2E — Sandbox Non-Admin (gating sanity)
+
+# Negative-coverage smoke test. Runs the full Playwright suite against
+# the sandbox with FOSS_USER swapped to the non-admin SSO identity
+# (SANDBOX_NORMAL_USER). The point is to verify that admin gating is
+# actually enforced — if these test runs pass green with a non-admin
+# user, our admin-positive assertions are not load-bearing and the
+# admin gating is broken (or untested).
+#
+# Success criterion is inverted: the full Playwright run MUST exit
+# non-zero. If the suite finishes green, the workflow fails loudly so
+# someone investigates whether the admin contract is real.
+
+on:
+  schedule:
+    # Daily at 06:00 UTC. Off-peak from the main e2e-sandbox cron
+    # (which runs at 00:00 and 12:00 UTC).
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-sandbox-non-admin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: chromium (non-admin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      FOSS_BASE_URL:    ${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}
+      # Swap: FOSS_USER is normally the admin identity. Here we point it
+      # at the non-admin secret so admin-positive tests are guaranteed
+      # to be authenticated as a non-admin.
+      FOSS_USER:        ${{ secrets.SANDBOX_NORMAL_USER }}
+      FOSS_PASS:        ${{ secrets.SANDBOX_NORMAL_PASS }}
+      NORMAL_USER:      ${{ secrets.SANDBOX_NORMAL_USER }}
+      NORMAL_PASS:      ${{ secrets.SANDBOX_NORMAL_PASS }}
+      PLANE_ADMIN_USER: ${{ secrets.SANDBOX_PLANE_ADMIN_USER }}
+      PLANE_ADMIN_PASS: ${{ secrets.SANDBOX_PLANE_ADMIN_PASS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (chromium only)
+        run: npm run install:browsers:ci
+
+      - name: Sanity — required secrets present
+        run: |
+          if [ -z "$FOSS_USER" ] || [ -z "$FOSS_PASS" ]; then
+            echo "::error::SANDBOX_NORMAL_USER / SANDBOX_NORMAL_PASS not set." \
+                 "Configure under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      # Allow the test step itself to fail — failure is the success
+      # criterion. The verify step below promotes "tests failed" into
+      # workflow success and turns "tests passed" into a hard failure.
+      - name: Run Playwright tests (chromium)
+        id: tests
+        continue-on-error: true
+        run: npx playwright test --project=chromium
+
+      - name: Verify the run failed (admin tests MUST not pass for a non-admin)
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            echo "::error::Playwright suite passed GREEN with non-admin creds." \
+                 "Admin-positive tests should have failed. The admin gating is" \
+                 "either broken on the deployment, or our admin-positive" \
+                 "assertions are not actually load-bearing."
+            exit 1
+          fi
+          echo "Suite failed as expected — admin gating verified."
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-sandbox-non-admin
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload failure traces / videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-sandbox-non-admin
+          path: test-results/
+          retention-days: 7
+
+      # Slack notifications cover both branches:
+      #   • Expected case (workflow success / tests failed): post a green
+      #     summary listing which admin tests failed — proof the gating
+      #     is doing its job.
+      #   • Alarm case (workflow failure / tests passed green): post a
+      #     loud alert because admin gating may be broken.
+      - name: Notify Slack on expected fail (gating verified)
+        if: success()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set — skipping Slack notification."
+            exit 0
+          fi
+
+          # Extract the admin-positive test names that failed from the
+          # Playwright JSON reporter — these are the "good failures" that
+          # prove the gating is enforced.
+          if [ -f test-results/report.json ]; then
+            FAILED=$(jq -r '
+              [.. | objects | select(.specs?) | .specs[] | select(.ok == false) | "\(.file): \(.title)"]
+              | .[]' test-results/report.json 2>/dev/null || true)
+          else
+            FAILED=""
+          fi
+
+          if [ -z "$FAILED" ]; then
+            FAILED="(could not parse failed tests; check the run for details)"
+          fi
+
+          COUNT=$(printf '%s\n' "$FAILED" | grep -c . || echo 0)
+          SHORT_SHA="${SHA:0:7}"
+          RUN_URL="$SERVER/$REPO/actions/runs/$RUN_ID"
+
+          MESSAGE="✅ E2E Non-Admin gating sanity — verified ($COUNT admin test(s) failed as expected)
+          Identity: SANDBOX_NORMAL_USER (non-admin) — FOSS_USER swapped to the non-admin secret for this run
+          Branch: $REF @ $SHORT_SHA
+          $RUN_URL
+
+          Admin-positive tests that correctly rejected the non-admin user:
+          $FAILED"
+
+          curl -sS -X POST -H "Content-Type: application/json" \
+            --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Notify Slack on unexpected pass
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set — skipping Slack notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${SHA:0:7}"
+          RUN_URL="$SERVER/$REPO/actions/runs/$RUN_ID"
+
+          MESSAGE="⚠️ E2E Non-Admin sanity FAILED — Playwright suite passed GREEN with non-admin creds. Admin gating may be broken, or admin-positive assertions are not load-bearing.
+          Identity: SANDBOX_NORMAL_USER (non-admin) — FOSS_USER swapped to the non-admin secret for this run
+          Branch: $REF @ $SHORT_SHA
+          $RUN_URL"
+
+          curl -sS -X POST -H "Content-Type: application/json" \
+            --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"

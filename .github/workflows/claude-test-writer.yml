@@ -1,0 +1,366 @@
+name: Claude — Write Bug Test
+
+# Reacts to issues labeled `bug-fixer-auto`. The issue body must follow
+# the schema in sso-rules-moneta/agents/bug-fixer/ARCHITECTURE.md §10.
+# The action reads the issue body + CLAUDE.md + the referenced files,
+# writes a Playwright test under tests/bugs/, opens a PR.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write       # commit + push the test branch
+  pull-requests: write  # open the PR
+  issues: write         # post the PR link as a comment
+  id-token: write       # Claude Code Action needs an OIDC token for auth
+
+concurrency:
+  group: claude-test-writer-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  write-test:
+    if: github.event.label.name == 'bug-fixer-auto'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node (for tsc)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (for tsc type-check)
+        run: npm ci
+
+      # Pre-compute the bug-id / branch / test path from the issue title.
+      # Doing this in bash keeps the work cheap (free) instead of asking
+      # Claude to do string-munging across multiple expensive turns.
+      # The issue title is passed via env var (quoted expansion in shell)
+      # so special characters can't break the script — the script-injection
+      # pattern would only matter if we interpolated ${{ ... }} directly
+      # into the run: block.
+      - name: Parse issue
+        id: parse
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          # Extract FOSSSMBBUN-N from the title; fall back to issue number.
+          if echo "$ISSUE_TITLE" | grep -qE 'FOSSSMBBUN-[0-9]+'; then
+            SEQ=$(echo "$ISSUE_TITLE" | grep -oE 'FOSSSMBBUN-[0-9]+' | head -1)
+            SHORT_ID="${SEQ#FOSSSMBBUN-}"
+            BRANCH="bug-test/foss-${SHORT_ID}"
+          else
+            SHORT_ID="${ISSUE_NUMBER}"
+            BRANCH="bug-test/issue-${ISSUE_NUMBER}"
+          fi
+
+          {
+            echo "short_id=${SHORT_ID}"
+            echo "branch=${BRANCH}"
+            echo "test_path=tests/bugs/bug_${SHORT_ID}.spec.ts"
+            echo "plan_path=tests/bugs/specs/bug_${SHORT_ID}.plan.md"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Parsed: short_id=${SHORT_ID} branch=${BRANCH}"
+
+      # Idempotency guard: if a PR is already open for the target branch,
+      # skip the (expensive) Claude invocation. To avoid comment spam on
+      # repeated re-label cycles, only post the "Skipping" notice once per
+      # issue — subsequent re-labels just no-op.
+      - name: Skip if PR already exists
+        id: existing_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.parse.outputs.branch }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SKIP_MARKER: "<!-- claude-test-writer:skip -->"
+        run: |
+          set -euo pipefail
+
+          PR_URL=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // ""')
+          if [ -z "$PR_URL" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Found existing PR: $PR_URL"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+
+          # Only comment if we haven't already posted a skip notice on this issue.
+          ALREADY_NOTIFIED=$(gh issue view "$ISSUE_NUMBER" \
+            --json comments \
+            --jq ".comments[] | select(.body | contains(\"$SKIP_MARKER\")) | .id" \
+            | head -1)
+
+          if [ -z "$ALREADY_NOTIFIED" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
+          $SKIP_MARKER
+          Skipping — PR already open for branch \`$BRANCH\`: $PR_URL
+          EOF
+          )"
+          else
+            echo "Skip notice already posted on issue #$ISSUE_NUMBER — not re-posting."
+          fi
+
+      - name: Run Claude to write the test
+        if: steps.existing_pr.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          label_trigger: bug-fixer-auto
+          # Haiku 4.5 for cost; --max-turns 15 caps a runaway run.
+          claude_args: "--max-turns 15 --model claude-haiku-4-5-20251001"
+          prompt: |
+            Write a Playwright regression for the bug in this issue,
+            **spec-driven**: produce a plan markdown file first, then
+            generate the test from the plan. Both files commit in the
+            same PR.
+
+            ## Read first
+
+            - `CLAUDE.md` — suite conventions + per-app gotchas. The
+              "Bug spec plan format" section holds the canonical
+              plan-file template (Application Overview, Test
+              Scenarios, Steps, `- expect:` bullets); use it verbatim.
+            - Every file in the issue body's "Files to read before
+              writing the test" list. Skip any line prefixed `sso:` —
+              those live in a sibling repo we don't fetch.
+
+            ## Inputs already resolved
+
+            - Plan file path:  `${{ steps.parse.outputs.plan_path }}`
+            - Test file path:  `${{ steps.parse.outputs.test_path }}`
+            - Branch name:     `${{ steps.parse.outputs.branch }}`
+            - Issue number:    `${{ github.event.issue.number }}`
+
+            The bug title may contain special shell characters — never
+            interpolate `${{ github.event.issue.title }}` into bash.
+            Fetch it at runtime:
+            ```bash
+            BUG_TITLE=$(gh issue view ${{ github.event.issue.number }} --json title --jq .title)
+            ```
+            Then reference `"$BUG_TITLE"` (quoted) in shell commands.
+
+            ## Triage: do you have enough info? (always do this first)
+
+            After reading the inputs, classify the bug into one of three
+            modes before writing anything:
+
+            **Mode 1 — proceed normally.** The issue body has:
+              - at least one concrete reproduction step,
+              - a clear observable failure (what the user sees, hears, or
+                measures — not just "doesn't work"), AND
+              - enough context to know which app/page/layer is involved.
+
+              → Proceed to Steps 1-6 below. Write plan + test as normal.
+              No "Open Questions" section in the plan (the bug is fully
+              specified).
+
+            **Mode 2 — proceed with Open Questions.** Critical info is
+            present (you can write a meaningful test), BUT soft signals
+            are murky: ambiguous user identity, unclear error location
+            (DOM vs console vs network), uncertain step ordering, no
+            severity hint, etc.
+
+              → Proceed to Steps 1-6. Include an `## Open Questions`
+              section at the end of the plan listing the ambiguities you
+              resolved with best-effort defaults. Number them, keep them
+              concrete. The PR body links to this section so the human
+              reviewer can confirm or correct.
+
+            **Mode 3 — ask and stop.** Critical info is missing or
+            contradictory: no concrete steps, "doesn't work" with no
+            observable, no app context, two contradictory descriptions,
+            etc.
+
+              → Post a comment on the issue with your specific questions
+              (numbered, concrete — not "more details please"), then
+              STOP. Do not write the plan. Do not write the test. Do
+              not commit. Do not open a PR.
+              ```bash
+              gh issue comment ${{ github.event.issue.number }} --body "$(cat <<EOF
+              I need more info before I can write a meaningful test.
+              Could you clarify and update the issue body, then re-apply
+              the \`bug-fixer-auto\` label?
+
+              1. <question 1>
+              2. <question 2>
+              ...
+
+              No plan written, no test written — re-trigger after the
+              body is updated.
+              EOF
+              )"
+              ```
+              Exit 0 from the agent's perspective (workflow stays green).
+
+            ## Common Mode 2 ambiguities to watch for
+
+            These come up often enough that they're worth flagging as
+            Open Questions rather than guessing. CLAUDE.md's "Deployment
+            gotchas" table is the canonical source for each app; this
+            list just highlights the bug-fixer-relevant ones:
+
+            - **Admin path (Plane)?** If the bug involves admin actions
+              in Plane, distinguish:
+                - (a) **admin-via-SSO** — user is `FOSS_USER` with their
+                      Plane workspace role (Owner of `aa`, Member of
+                      `fossarbisoft`). Uses the shared worker auth
+                      fixture. Test imports `test` from `../../fixtures`.
+                - (b) **admin-via-god-mode** — local Plane admin login
+                      at `/god-mode/` using `PLANE_ADMIN_USER` /
+                      `PLANE_ADMIN_PASS`. Bypasses SSO entirely (that
+                      bypass IS a tested invariant — see
+                      `tests/apps/pm-godmode.spec.ts`). Test imports
+                      `test as raw` from `@playwright/test` and does
+                      its own local-creds login.
+              Bug-text clues for (b): "god-mode", "admin console",
+              "ops admin", "/god-mode/". Default to (a) if ambiguous,
+              and list as an Open Question if the description doesn't
+              clearly say.
+
+            ## Steps (Mode 1 + Mode 2 only)
+
+            1. Read the files listed above. Form a mental model of
+               what's broken and what *should* happen.
+
+            2. **Write the plan** at
+               `${{ steps.parse.outputs.plan_path }}`. Follow the
+               format from the spec-driven-testing.md reference:
+
+               ```markdown
+               # Bug FOSSSMBBUN-N — short title
+
+               ## Application Overview
+
+               <One paragraph: which app/layer, what the bug breaks,
+               what the user is trying to do, what they see instead.>
+
+               ## Test Scenarios
+
+               ### 1. <Scenario group name>
+
+               **Seed:** `tests/fixtures.ts` (worker-authenticated
+               `context` fixture) — or `tests/lib/common-flows.ts`'s
+               `freshLogin(browser)` for login/logout/session bugs.
+
+               #### 1.1. <kebab-case-scenario-name>
+
+               **File:** `${{ steps.parse.outputs.test_path }}`
+
+               **Steps:**
+                 1. <User-level action>
+                    - expect: <observable outcome>
+                 2. <Next action>
+                    - expect: <outcome>
+                    - expect: <another outcome>
+
+               ## Open Questions  (Mode 2 only — omit this section in Mode 1)
+
+               These ambiguities were resolved with best-effort defaults.
+               Confirm in PR review, or update the issue and re-trigger
+               if any are wrong:
+
+               1. **<short concrete label>** — <what was assumed and why,
+                  what the alternative would mean for the test>.
+               2. **<next>** — …
+               ```
+
+               One bug usually = one scenario. If the bug description
+               clearly has multiple distinct repros, list them as 1.1,
+               1.2, etc. (they all go into the same .spec.ts file —
+               separate `test()` calls inside the same `describe`.
+               This diverges from Playwright SDD's strict one-test-per-
+               file rule because our staging convention is
+               one .spec.ts per bug.)
+
+            3. **Write the test** at
+               `${{ steps.parse.outputs.test_path }}` from the plan.
+               Each scenario in the plan = one `test()`. Each numbered
+               step = a `// N. <step text>` comment in the test code,
+               followed by the corresponding Playwright calls. Each
+               `- expect:` bullet = an explicit `expect(...)` assertion.
+
+               The test file's first non-import line must be a
+               header comment pointing back to the plan:
+               ```ts
+               // spec: ${{ steps.parse.outputs.plan_path }}
+               // seed: tests/fixtures.ts  (or tests/lib/common-flows.ts)
+               ```
+
+               **Choose the auth pattern by bug class:**
+                 - **Default:** `import { test } from "../../fixtures"`.
+                   The `context` fixture is already authenticated by the
+                   worker — just `await context.newPage()` and navigate.
+                   No login code in the test. Use this for any bug about
+                   post-auth UI behavior.
+                 - **`freshLogin(browser)` from `tests/lib/common-flows.ts`:**
+                   for bugs about login itself, logout, session expiry,
+                   re-login, or identity switching. Test owns its context.
+                 - **Multiple `browser.newContext()`:** for bugs about two
+                   concurrent users or multi-tab session interactions —
+                   cookies are scoped per context, so the shared fixture
+                   can't simulate two users.
+
+               Other rules (CLAUDE.md has the full list):
+                 - Login via `cognitoLogin()` or `freshLogin()` — never
+                   roll your own IDP form choreography.
+                 - Import URLs from `constants.ts`. No hardcoded hosts.
+                 - **Before any post-auth assertion, FIRST verify auth
+                   landed** (check a known authenticated element, not
+                   just `networkidle`). The portal's async session check
+                   can race past `networkidle`.
+                 - No POM, no mocking, no `@spec` tag (staging).
+                 - The test must FAIL today against
+                   `https://foss.arbisoft.com` — that's how we know
+                   the bug is reproducible.
+
+            4. Run `npx tsc --noEmit`. Fix any errors and re-run until
+               clean. If you can't get it clean in 2 attempts, comment
+               on the issue explaining the blocker and stop.
+
+            5. Commit + push + open PR. Both files commit together:
+               ```bash
+               BUG_TITLE=$(gh issue view ${{ github.event.issue.number }} --json title --jq .title)
+
+               git checkout -b ${{ steps.parse.outputs.branch }}
+               git add \
+                 ${{ steps.parse.outputs.plan_path }} \
+                 ${{ steps.parse.outputs.test_path }}
+               git commit -m "test(bugs): reproduction plan + test for issue #${{ github.event.issue.number }}"
+               git push -u origin ${{ steps.parse.outputs.branch }}
+
+               gh pr create \
+                 --title "[Bug Test] $BUG_TITLE" \
+                 --body "$(cat <<EOF
+               Reproduction plan + test for issue #${{ github.event.issue.number }}.
+
+               - Plan: \`${{ steps.parse.outputs.plan_path }}\` — read this first; it explains what the test asserts and why.
+               - Test: \`${{ steps.parse.outputs.test_path }}\` — generated from the plan.
+
+               If the plan has an \`## Open Questions\` section (Mode 2),
+               review and answer those before approving. Either edit the
+               plan + test in this PR, or update the issue body and
+               re-trigger with the \`bug-fixer-auto\` label for a fresh
+               regeneration.
+
+               Closes-on-fix: when the test moves out of \`tests/bugs/\` it'll be tagged with \`@spec\`. The plan stays here as the per-bug spec until then.
+               EOF
+               )" \
+                 --base main
+               ```
+
+            6. Comment the PR URL on the issue:
+               ```bash
+               gh issue comment ${{ github.event.issue.number }} --body "PR opened: <pr-url>"
+               ```

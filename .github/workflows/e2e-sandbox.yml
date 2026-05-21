@@ -1,0 +1,190 @@
+name: E2E — Sandbox (Chromium)
+
+# Runs against the sandbox deployment:
+#   - twice a day on a 12-hour schedule (00:00 and 12:00 UTC)
+#   - on every push to main (staging tests included → Slack reflects truth)
+#   - on PRs that touch real test surface (staging excluded → PR signal clean)
+#   - on manual dispatch
+#
+# Staging-test handling (tests/bugs/**):
+#   * push to main / schedule / workflow_dispatch → INCLUDED in the suite.
+#     Staging tests fail by design (they track open bugs) → Slack channel
+#     surfaces them as failures, so a "main is green" message means main
+#     suite + staging are BOTH green (i.e. all known bugs fixed).
+#   * pull_request → EXCLUDED. The dedicated bug-tests-run.yml workflow
+#     handles staging on a per-PR basis with the changed-files scope.
+#     Keeps PR CI signal focused on "did this PR regress real test surface."
+#
+# paths-ignore on pull_request still skips the workflow entirely when ALL
+# changed files match (docs / agents / staging-only changes don't need
+# the main suite — they ship via their own paths).
+
+on:
+  schedule:
+    # Every 12 hours: 00:00 and 12:00 UTC daily.
+    - cron: "0 */12 * * *"
+  push:
+    branches: [main]
+    # No paths-ignore on push: main-branch pushes always run the suite,
+    # including staging tests, so Slack notifications track the full
+    # truth of "what's green / what's failing" on main.
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "tests/bugs/**"
+      - "agents/**"
+      - "docs/**"
+      - ".claude/**"
+      - "**/*.md"
+      - ".github/workflows/bug-tests-run.yml"
+      - ".github/workflows/claude-test-writer.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-sandbox-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      # Include staging tests (tests/bugs/**) on push/schedule/dispatch.
+      # Exclude on pull_request so PR CI signal stays focused on real
+      # regression of the main suite; bug-tests-run.yml handles per-PR
+      # staging scoping for those events.
+      PW_INCLUDE_STAGING: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+      # Sandbox base URL is the default — set the repo variable
+      # SANDBOX_FOSS_BASE_URL to override (e.g. for an ephemeral sandbox).
+      FOSS_BASE_URL:    ${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}
+      FOSS_USER:        ${{ secrets.SANDBOX_FOSS_USER }}
+      FOSS_PASS:        ${{ secrets.SANDBOX_FOSS_PASS }}
+      NORMAL_USER:      ${{ secrets.SANDBOX_NORMAL_USER }}
+      NORMAL_PASS:      ${{ secrets.SANDBOX_NORMAL_PASS }}
+      PLANE_ADMIN_USER: ${{ secrets.SANDBOX_PLANE_ADMIN_USER }}
+      PLANE_ADMIN_PASS: ${{ secrets.SANDBOX_PLANE_ADMIN_PASS }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (chromium only)
+        run: npm run install:browsers:ci
+
+      - name: Sanity — required secrets present
+        run: |
+          if [ -z "$FOSS_USER" ] || [ -z "$FOSS_PASS" ]; then
+            echo "::error::SANDBOX_FOSS_USER / SANDBOX_FOSS_PASS not set." \
+                 "Configure under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Run Playwright tests (chromium)
+        run: npx playwright test --project=chromium
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-sandbox
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload failure traces / videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-sandbox
+          path: test-results/
+          retention-days: 7
+
+      # Slack notification — plain text. Failure path lists each failed
+      # test by name; success path posts a green-build heartbeat with the
+      # passing count. Add `SLACK_WEBHOOK_URL` as a repo secret to enable.
+      # No-ops with a log message if unset.
+      - name: Notify Slack on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set — skipping Slack notification."
+            exit 0
+          fi
+
+          # Extract failed test names from the JSON reporter output.
+          # Walks the nested suites tree, picks specs whose `ok` is false.
+          if [ -f test-results/report.json ]; then
+            FAILED=$(jq -r '
+              [.. | objects | select(.specs?) | .specs[] | select(.ok == false) | "\(.file): \(.title)"]
+              | .[]' test-results/report.json 2>/dev/null || true)
+          else
+            FAILED=""
+          fi
+
+          if [ -z "$FAILED" ]; then
+            FAILED="(could not parse failed tests; check the run for details)"
+          fi
+
+          COUNT=$(printf '%s\n' "$FAILED" | grep -c . || echo 0)
+          SHORT_SHA="${SHA:0:7}"
+          RUN_URL="$SERVER/$REPO/actions/runs/$RUN_ID"
+
+          MESSAGE="E2E Sandbox failed — $COUNT test(s)
+          Branch: $REF @ $SHORT_SHA
+          $RUN_URL
+
+          $FAILED"
+
+          curl -sS -X POST -H "Content-Type: application/json" \
+            --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Notify Slack on success
+        if: success()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set — skipping Slack notification."
+            exit 0
+          fi
+
+          if [ -f test-results/report.json ]; then
+            COUNT=$(jq '[.. | objects | select(.specs?) | .specs[] | select(.ok == true)] | length' \
+              test-results/report.json 2>/dev/null || echo 0)
+          else
+            COUNT="all"
+          fi
+
+          SHORT_SHA="${SHA:0:7}"
+          RUN_URL="$SERVER/$REPO/actions/runs/$RUN_ID"
+
+          MESSAGE="E2E Sandbox passed — $COUNT test(s) green
+          Branch: $REF @ $SHORT_SHA
+          $RUN_URL"
+
+          curl -sS -X POST -H "Content-Type: application/json" \
+            --data "$(jq -nc --arg text "$MESSAGE" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"
