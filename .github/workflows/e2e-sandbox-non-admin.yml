@@ -42,7 +42,7 @@ jobs:
       PLANE_ADMIN_PASS: ${{ secrets.SANDBOX_PLANE_ADMIN_PASS }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node
         uses: actions/setup-node@v4
