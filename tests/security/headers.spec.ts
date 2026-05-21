@@ -145,3 +145,113 @@ test.describe("Security headers", () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// HTML-only hardening: CSP + Cross-Origin-Opener-Policy + Cross-Origin-Resource-Policy.
+//
+// These three headers only make sense on HTML responses — checking them
+// on /favicon.ico or on the oauth2-proxy /oauth2/sign_in redirect would
+// be noise. Scoped to the main portal + per-app landing pages: the HTML
+// surfaces a real user types passwords on and where app JS executes.
+//
+//   • CSP    — defense-in-depth against XSS exfiltrating the SSO cookie
+//              or making background fetches to an attacker origin.
+//   • COOP   — isolates the browsing context group so a cross-origin
+//              window opener cannot probe window.opener / postMessage
+//              (tabnabbing, opener-redirect, Spectre side-channels).
+//   • CORP   — declares whether sub-resources can be embedded by other
+//              origins; absence means implicit cross-origin embed.
+// ---------------------------------------------------------------------------
+test.describe("HTML hardening headers (CSP, COOP, CORP)", () => {
+  const HTML_TARGETS = [
+    { name: "Main portal", url: MAIN_URL },
+    ...APPS.map((a) => ({ name: a.name, url: a.url })),
+  ];
+
+  for (const target of HTML_TARGETS) {
+    test(`${target.name} serves CSP + COOP + CORP on HTML responses`, async () => {
+      const headers = await fetchHeaders(target.url);
+      const failures: string[] = [];
+
+      // ---- CSP ----------------------------------------------------------
+      const csp = headers["content-security-policy"];
+      if (!csp) {
+        failures.push(
+          "content-security-policy: missing — CSP is the load-bearing XSS-mitigation header; without it, a reflected/stored XSS gets the full SSO cookie via JS and can fetch() to any attacker origin",
+        );
+      } else {
+        if (!/\bdefault-src\b/.test(csp)) {
+          failures.push(
+            `content-security-policy: missing default-src directive (got "${csp}") — any directive not explicitly listed is unrestricted`,
+          );
+        }
+        const scriptSrcMatch = csp.match(/script-src([^;]*)/);
+        if (scriptSrcMatch && /'unsafe-inline'/.test(scriptSrcMatch[1] ?? "")) {
+          failures.push(
+            `content-security-policy: allows 'unsafe-inline' in script-src ("${scriptSrcMatch[0]}") — defeats CSP's XSS protection. Use nonces or hashes`,
+          );
+        }
+      }
+
+      // ---- COOP ---------------------------------------------------------
+      const coop = headers["cross-origin-opener-policy"];
+      if (coop !== "same-origin") {
+        failures.push(
+          `cross-origin-opener-policy: ${coop === undefined ? "missing" : `"${coop}"`} — must be "same-origin" to isolate the browsing context group (tabnabbing / opener-probe defence)`,
+        );
+      }
+
+      // ---- CORP ---------------------------------------------------------
+      const corp = headers["cross-origin-resource-policy"];
+      if (!corp || !["same-origin", "same-site", "cross-origin"].includes(corp)) {
+        failures.push(
+          `cross-origin-resource-policy: ${corp === undefined ? "missing" : `"${corp}"`} — must be set to declare an explicit cross-origin embedding policy`,
+        );
+      }
+
+      expect(
+        failures,
+        `${target.name} (${target.url}) HTML-hardening violations:\n${failures.join("\n")}`,
+      ).toEqual([]);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Server header — must not leak exact upstream versions.
+//
+// A `Server: nginx/1.27.5` (or `Apache/2.4.58`) header hands attackers
+// the exact version string, which they can map to a CVE list. Acceptable
+// shapes: header absent, or value with no `/<version>` suffix (e.g.,
+// "nginx" or "Traefik" without a digit). Negative assertion — doesn't
+// fit the "must satisfy" HEADER_RULES shape.
+// ---------------------------------------------------------------------------
+test.describe("Server header — no version disclosure", () => {
+  const ALL_TARGETS = [
+    { name: "Main portal", url: MAIN_URL },
+    ...APPS.map((a) => ({ name: a.name, url: a.url })),
+    {
+      name: "auth-proxy /oauth2/sign_in",
+      url: `https://${AUTH_PROXY_DOMAIN}/oauth2/sign_in`,
+    },
+  ];
+
+  // Pattern: any known server name followed by `/<digit>` is a version
+  // leak. Lowercase matching because fetchHeaders() already normalises.
+  const VERSION_LEAK = /\b(nginx|apache|traefik|caddy|envoy|haproxy|iis|gunicorn|uvicorn)\/\d/;
+
+  for (const target of ALL_TARGETS) {
+    test(`${target.name} Server header does not leak upstream version`, async () => {
+      const headers = await fetchHeaders(target.url);
+      const server = headers["server"];
+      if (server === undefined) {
+        // Absent is fine — nothing to leak.
+        return;
+      }
+      expect(
+        VERSION_LEAK.test(server),
+        `${target.name} (${target.url}) Server header is "${server}" — it discloses an exact upstream version, which maps directly to CVE lists. Strip the version (e.g. "nginx" not "nginx/1.27.5") or drop the header entirely.`,
+      ).toBe(false);
+    });
+  }
+});
