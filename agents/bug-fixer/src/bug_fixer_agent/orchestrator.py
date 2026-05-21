@@ -45,6 +45,12 @@ def main() -> None:
         help="Stop after the reproduction test runs (no fix, no PR, no Plane comment). "
              "Useful for sanity-checking that a bug is reproducible locally.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing tests/bugs/bug_<id>.spec.ts. Without this, the agent "
+             "skips bugs whose reproduction test is already on disk.",
+    )
     args = parser.parse_args()
 
     if args.list_only:
@@ -66,6 +72,7 @@ def main() -> None:
         dry_run=args.dry_run,
         only_issue=args.issue_id,
         test_only=args.test_only,
+        force=args.force,
     )
 
 
@@ -102,6 +109,7 @@ def run(
     dry_run: bool = False,
     only_issue: str | None = None,
     test_only: bool = False,
+    force: bool = False,
 ) -> None:
     plane = PlaneClient(cfg.plane_base_url, cfg.plane_workspace_slug, cfg.plane_api_token)
     gh = GHClient(cfg.github_token)
@@ -128,6 +136,14 @@ def run(
             else:
                 log.warning(f"[{issue_id[:8]}] failed on previous run, skipping (use --retry-failed)")
                 continue
+
+        existing_test = os.path.join(e2e_path, "tests", "bugs", f"bug_{issue_id[:8]}.spec.ts")
+        if os.path.exists(existing_test) and not force and not retry_failed:
+            log.info(
+                f"[{issue_id[:8]}] reproduction test already exists at {existing_test} — "
+                f"skipping (pass --force to overwrite)"
+            )
+            continue
 
         log.info(f"[{issue_id[:8]}] processing: {issue['name'][:60]}")
         _process_issue(issue, cfg, state, plane, gh, e2e_path, dry_run, test_only)

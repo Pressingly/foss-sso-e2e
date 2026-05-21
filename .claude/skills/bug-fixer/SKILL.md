@@ -55,6 +55,7 @@ set -a; source .env; set +a    # PLANE_API_TOKEN, FOSS_USER, etc.
 | `--test-only --issue-id <uuid>` | The main mode. Routes the bug, writes the plan, writes the test, runs Playwright (2 retries) to verify. Does NOT open a fix-PR. |
 | `--issue-id <uuid>` | Without `--test-only`: full pipeline including fix-writing. **Not what you want most of the time** — the fix step spawns another subagent and writes to a different repo. |
 | `--retry-failed` | Re-runs an issue whose previous attempt failed (state in `agents/state.json`). |
+| `--force` | Overwrite an existing `tests/bugs/bug_<id>.spec.ts`. Without this, the agent skips bugs whose reproduction test is already on disk (dedupe guard). |
 | `--dry-run` | Stops before opening any PR. Roughly equivalent to `--test-only` but doesn't retry the verify step. |
 
 ## Output: two files per bug
