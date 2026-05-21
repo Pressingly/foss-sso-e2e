@@ -35,17 +35,25 @@ repo. Full architecture: `agents/bug-fixer/ARCHITECTURE.md`.
 
 ```bash
 cd agents/bug-fixer
-set -a; source .env; set +a    # PLANE_API_TOKEN, FOSS_USER, etc.
 
 # Survey what's open in Plane without writing anything:
-.venv/bin/bug-fixer --list-only
+make list
 
-# Generate plan + test for a specific bug (Mode 1 or 2 path):
-.venv/bin/bug-fixer --test-only --issue-id <plane-uuid>
+# Generate plan + test for a specific bug (Mode 1 or 2 path).
+# ID accepts: N, FOSSSMBBUN-N, or full UUID.
+make test ID=92
+
+# Overwrite an existing tests/bugs/bug_<id>.spec.ts (default is skip-if-exists):
+make test ID=92 FORCE=1
 
 # Retry a previously failed run:
-.venv/bin/bug-fixer --retry-failed --issue-id <plane-uuid>
+make test ID=92 RETRY=1
 ```
+
+`make test` sources `.env` automatically and runs `bug-bootstrap.py`
+internally to resolve human IDs to UUIDs and print scope. The
+underlying CLI (`.venv/bin/bug-fixer …`) is still callable for
+scripting; see the flags table below.
 
 ## CLI flags
 

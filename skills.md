@@ -434,9 +434,9 @@ PW_INCLUDE_STAGING=1 PW_DEBUG_VISUAL=1 \
 
 ```bash
 cd agents/bug-fixer
-set -a; source .env; set +a
-.venv/bin/bug-fixer --list-only                    # see open Plane bugs
-.venv/bin/bug-fixer --test-only --issue-id <uuid>  # write plan + test
+make list                  # see open Plane bugs (read-only)
+make test ID=92            # resolve + scope + write plan + test + verify
+make test ID=92 FORCE=1    # overwrite an existing tests/bugs/bug_<id>.spec.ts
 ```
 
 The agent's prompt enforces the spec-driven flow (plan first, then
