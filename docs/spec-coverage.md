@@ -62,6 +62,7 @@ Traceability matrix between [awais786/sso-rules-moneta openspec contract](https:
 | per-app session TTLs SHALL be uniformly configurable | ⚠️ Deferred | — (config-level, not behavioural) |
 | Layer-2 session renewal SHALL be guarded against three regression paths | 🟡 Partial | `tests/auth/layer2-renewal-suppressed-on-4xx.spec.ts` (Penpot only — 4xx RPC response carries no fresh `auth-token` Set-Cookie. Extending to Outline/Plane is the same pattern with different per-app cookie names) |
 | bridge state TTL SHALL be 3 minutes | ⚠️ Deferred | — |
+| only one OAuth login flow SHALL be in progress per browser at a time | 🟡 Partial | `tests/bugs/bug_dc998ba0.spec.ts` (FOSSSMBBUN-88 — asserts the graceful-failure observable on the losing tab: `/mpass-callback` → 302 to portal with `login_error=expired_flow`. Doesn't directly assert the `mpass_login_lock` cookie / 409 backstop — those are the wire-level mechanism, this is the user-visible consequence) |
 
 ## cognito-claim-mapping
 

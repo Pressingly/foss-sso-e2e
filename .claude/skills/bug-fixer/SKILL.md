@@ -35,17 +35,25 @@ repo. Full architecture: `agents/bug-fixer/ARCHITECTURE.md`.
 
 ```bash
 cd agents/bug-fixer
-set -a; source .env; set +a    # PLANE_API_TOKEN, FOSS_USER, etc.
 
 # Survey what's open in Plane without writing anything:
-.venv/bin/bug-fixer --list-only
+make list
 
-# Generate plan + test for a specific bug (Mode 1 or 2 path):
-.venv/bin/bug-fixer --test-only --issue-id <plane-uuid>
+# Generate plan + test for a specific bug (Mode 1 or 2 path).
+# ID accepts: N, FOSSSMBBUN-N, or full UUID.
+make test ID=92
+
+# Overwrite an existing tests/bugs/bug_<id>.spec.ts (default is skip-if-exists):
+make test ID=92 FORCE=1
 
 # Retry a previously failed run:
-.venv/bin/bug-fixer --retry-failed --issue-id <plane-uuid>
+make test ID=92 RETRY=1
 ```
+
+`make test` sources `.env` automatically and runs `bug-bootstrap.py`
+internally to resolve human IDs to UUIDs and print scope. The
+underlying CLI (`.venv/bin/bug-fixer …`) is still callable for
+scripting; see the flags table below.
 
 ## CLI flags
 
@@ -55,6 +63,7 @@ set -a; source .env; set +a    # PLANE_API_TOKEN, FOSS_USER, etc.
 | `--test-only --issue-id <uuid>` | The main mode. Routes the bug, writes the plan, writes the test, runs Playwright (2 retries) to verify. Does NOT open a fix-PR. |
 | `--issue-id <uuid>` | Without `--test-only`: full pipeline including fix-writing. **Not what you want most of the time** — the fix step spawns another subagent and writes to a different repo. |
 | `--retry-failed` | Re-runs an issue whose previous attempt failed (state in `agents/state.json`). |
+| `--force` | Overwrite an existing `tests/bugs/bug_<id>.spec.ts`. Without this, the agent skips bugs whose reproduction test is already on disk (dedupe guard). |
 | `--dry-run` | Stops before opening any PR. Roughly equivalent to `--test-only` but doesn't retry the verify step. |
 
 ## Output: two files per bug

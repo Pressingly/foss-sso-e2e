@@ -5,11 +5,10 @@ Bug bootstrap — mode-agnostic ticket + scope dumper.
 Fetches a Plane ticket, prints its title + description + UUID + URL,
 and runs the root-cause-analyst skill's Step 0 scope detection
 mechanically. Prints detected scope(s) and the files most worth
-reading first. **Does not** print a "next step" — caller (Makefile
-target) tells the user what to do next, because the same bootstrap
-serves both diagnose-mode and add-e2e-mode workflows.
+reading first.
 
-Usage (typically via `make debug ID=…` or `make e2e ID=…`):
+Usage (typically called by `make test ID=…`, which extracts the
+resolved UUID from the output and passes it to the bug-fixer CLI):
     python3 scripts/bug-bootstrap.py <FOSSSMBBUN-N | N | UUID>
 
 Requires (read from os.environ; caller sources .env first):

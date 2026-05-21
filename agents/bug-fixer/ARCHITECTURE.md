@@ -180,7 +180,7 @@ Today the openspec spec files are organized by module (`logout-flow`, `session-l
 - `gh_client.py` — branch, commit, push, open PRs in app repos
 - `state_tracker.py` — resume mid-pipeline
 - `orchestrator.py` — wire it all together
-- CLI flags: `--list-only`, `--test-only`, `--dry-run`, `--retry-failed`, `--issue-id`
+- CLI flags: `--list-only`, `--test-only`, `--dry-run`, `--retry-failed`, `--force`, `--issue-id`
 
 **Target (~150 lines):**
 - `plane_client.py` — fetch from Plane (unchanged)
