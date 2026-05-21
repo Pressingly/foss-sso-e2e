@@ -38,7 +38,7 @@ jobs:
           echo "Scanning: $TARGET"
 
       - name: ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.13.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: ${{ steps.target.outputs.url }}
           # Don't fail the workflow on warnings — baseline is informational.
