@@ -1,4 +1,5 @@
 // spec: /Users/apple/Documents/devstack/foss-sso-e2e/tests/bugs/specs/bug_dc998ba0.plan.md
+// @spec session-lifecycle#only-one-oauth-login-flow-shall-be-in-progress-per-browser-at-a-time
 // seed: none — owns its own BrowserContext. Multi-tab semantics need a
 //       single context with two pages (shared cookie jar is what makes
 //       the race observable); neither the worker `context` fixture nor
