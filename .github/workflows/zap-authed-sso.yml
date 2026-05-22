@@ -69,6 +69,8 @@ jobs:
           HTTP_PROXY: http://localhost:8080
           HTTPS_PROXY: http://localhost:8080
           NO_PROXY: localhost,127.0.0.1
+          # Override playwright.config.ts's default exclusion of tests/zap/**.
+          PW_INCLUDE_ZAP: "1"
         run: |
           npx playwright test tests/zap/sso-chain.spec.ts \
             --project=chromium --reporter=list --workers=1

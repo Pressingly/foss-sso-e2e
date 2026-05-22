@@ -50,10 +50,12 @@ const INCLUDE_STAGING = process.env.PW_INCLUDE_STAGING === "1";
 const STAGING_IGNORE = INCLUDE_STAGING ? [] : ["**/tests/bugs/**"];
 
 // tests/zap/ are ZAP-driver specs — they exercise the SSO chain through
-// a ZAP proxy so ZAP can record + active-scan the traffic. Always
-// excluded from default discovery; the dedicated zap-authed-sso.yml
-// workflow targets that file directly.
-const ZAP_IGNORE = ["**/tests/zap/**"];
+// a ZAP proxy so ZAP can record + active-scan the traffic. Default
+// config skips them (they only make sense when an HTTP_PROXY=ZAP is in
+// place); the dedicated zap-authed-sso.yml workflow sets
+// PW_INCLUDE_ZAP=1 to pull them back in.
+const INCLUDE_ZAP = process.env.PW_INCLUDE_ZAP === "1";
+const ZAP_IGNORE = INCLUDE_ZAP ? [] : ["**/tests/zap/**"];
 
 export default defineConfig({
   testDir: "./tests",
