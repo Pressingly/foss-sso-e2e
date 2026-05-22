@@ -127,13 +127,14 @@ def run(
             continue
 
         log.info(f"[{issue_id[:8]}] processing: {issue['name'][:60]}")
-        _process_issue(issue, cfg, state, e2e_path)
+        _process_issue(issue, cfg, state, plane, e2e_path)
 
 
 def _process_issue(
     issue: dict,
     cfg: Config,
     state: StateTracker,
+    plane: PlaneClient,
     e2e_path: str,
 ) -> None:
     issue_id = issue["id"]
