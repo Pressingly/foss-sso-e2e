@@ -163,6 +163,14 @@ folder (`tests/auth/`, `tests/apps/`, `tests/flows/`, …) and add a
 openspec change proposal (`sso-rules-moneta/openspec/changes/`) if
 the bug exposed a gap in the contract.
 
+## Verification runs headed by default
+
+After writing the test, the agent runs `npx playwright test … --headed`
+against the live sandbox so the human at the keyboard can see the
+repro happen in a real Chrome window. To run headless (e.g. in CI or
+a detached terminal without a display), set `TEST_WRITER_HEADLESS=1`
+in the environment before invoking the agent.
+
 ## Cost
 
 Local invocation uses your Claude Code subscription (no API spend).

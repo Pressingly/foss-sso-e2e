@@ -57,7 +57,11 @@ state-clean:
 
 venv:
 	@command -v uv >/dev/null 2>&1 || { echo "uv not installed. Install: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2; exit 1; }
-	@uv venv --python 3.12 .venv
+	@if [ -d .venv ]; then \
+		echo ".venv already exists — skipping create (use 'rm -rf .venv && make venv' to recreate)"; \
+	else \
+		uv venv --python 3.12 .venv; \
+	fi
 
 install: venv
 	@uv pip install --python .venv/bin/python -e ".[dev]"
