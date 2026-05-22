@@ -24,8 +24,7 @@ import { request, type BrowserContext } from "@playwright/test";
 import { APP_URLS, COOKIE_DOMAIN, IDP_REGEX, isAuthWall } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
 
-// Per-app session-cookie name patterns. Mirrors the set in
-// tests/auth/proxy-short-circuit.spec.ts so the two stay in sync.
+// Per-app session-cookie name patterns for theft checks in this spec.
 const APP_SESSION_COOKIE_PATTERNS: RegExp[] = [
   /^sessionid$/i, // Django (Plane, SurfSense)
   /^accessToken$/i, // Outline
