@@ -10,19 +10,14 @@
 // logic. Using the real admin email closes that gap: the backend
 // can't dismiss the spoof as "unknown identity".
 //
-// The IDENTITY_PROBES map below is intentionally duplicated from
-// `header-spoofing.spec.ts` to keep this PR purely additive (no
-// changes to the existing file). A follow-up refactor PR can extract
-// both copies into `tests/lib/identity-probes.ts`.
-//
 // Self-skips if NORMAL_USER or FOSS_USER credentials are unset — both
 // are needed (NORMAL_USER for the session, FOSS_USER's email as the
 // spoof target).
 
-import { test as raw, expect, request, BrowserContext } from "@playwright/test";
+import { test as raw, expect } from "@playwright/test";
 import { cognitoLogin } from "../../auth-helpers";
 import { APP_URLS, COGNITO_EMAIL_DOMAIN } from "../../constants";
-import { extractPenpotTransitField } from "../lib/penpot-transit";
+import { IDENTITY_PROBES } from "../lib/identity-probes";
 
 const FOSS_USER = process.env.FOSS_USER;
 const NORMAL_USER = process.env.NORMAL_USER;
@@ -39,64 +34,6 @@ function synthesizeEmail(userOrEmail: string): string {
     : `${userOrEmail}@${COGNITO_EMAIL_DOMAIN}`.toLowerCase();
 }
 
-async function cookieHeaderFor(ctx: BrowserContext, baseUrl: string): Promise<string> {
-  const cookies = await ctx.cookies(baseUrl);
-  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-}
-
-type IdentityProbe = (
-  ctx: BrowserContext,
-  extraHeaders: Record<string, string>,
-) => Promise<string>;
-
-const IDENTITY_PROBES: Record<string, IdentityProbe> = {
-  PM: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.PM);
-    const c = await request.newContext({ extraHTTPHeaders: { cookie, ...extra } });
-    try {
-      const r = await c.get(`${APP_URLS.PM}/api/users/me/`);
-      const j = (await r.json()) as { email: string };
-      return j.email;
-    } finally {
-      await c.dispose();
-    }
-  },
-  Outline: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.Outline);
-    const c = await request.newContext({
-      extraHTTPHeaders: { cookie, "content-type": "application/json", ...extra },
-    });
-    try {
-      const r = await c.post(`${APP_URLS.Outline}/api/auth.info`, { data: {} });
-      const j = (await r.json()) as { data: { user: { email: string } } };
-      return j.data.user.email;
-    } finally {
-      await c.dispose();
-    }
-  },
-  SurfSense: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.SurfSense);
-    const c = await request.newContext({ extraHTTPHeaders: { cookie, ...extra } });
-    try {
-      const r = await c.get(`${APP_URLS.SurfSense}/users/me`);
-      const j = (await r.json()) as { email: string };
-      return j.email;
-    } finally {
-      await c.dispose();
-    }
-  },
-  Penpot: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.Penpot);
-    const c = await request.newContext({ extraHTTPHeaders: { cookie, ...extra } });
-    try {
-      const r = await c.get(`${APP_URLS.Penpot}/api/rpc/command/get-profile`);
-      return extractPenpotTransitField(await r.json(), "~:email");
-    } finally {
-      await c.dispose();
-    }
-  },
-};
-
 raw.describe("Cross-user impersonation — spoofing the real admin identity", () => {
   raw.skip(
     !FOSS_USER || !NORMAL_USER || !NORMAL_PASS,
@@ -111,6 +48,10 @@ raw.describe("Cross-user impersonation — spoofing the real admin identity", ()
 
         const normalEmail = synthesizeEmail(NORMAL_USER!);
         const fossEmail = synthesizeEmail(FOSS_USER!);
+        expect(
+          normalEmail,
+          "Pre-condition failed: NORMAL_USER and FOSS_USER resolve to the same email; this test requires two distinct identities",
+        ).not.toBe(fossEmail);
 
         const ctx = await browser.newContext();
         try {
