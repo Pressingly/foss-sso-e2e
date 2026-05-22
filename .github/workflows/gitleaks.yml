@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Full history so the action can scan rename/move history accurately.
           fetch-depth: 0

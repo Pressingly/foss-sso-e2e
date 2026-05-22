@@ -53,7 +53,7 @@ jobs:
       NORMAL_PASS:   ${{ secrets.SANDBOX_NORMAL_PASS }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Need at least 2 commits so `git diff $BEFORE $SHA` can resolve
           # the parent commit when scoping target test files on push events.
