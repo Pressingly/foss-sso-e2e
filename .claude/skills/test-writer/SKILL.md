@@ -1,15 +1,19 @@
 ---
-name: bug-fixer
+name: test-writer
 description: Generate spec-driven Playwright reproductions for bugs filed in Plane. Reads a Plane ticket, writes a plan + test, runs the test to confirm reproducibility.
-allowed-tools: Bash(.venv/bin/bug-fixer:*) Bash(npx:*) Bash(cd:*) Bash(source:*) Bash(set:*)
+allowed-tools: Bash(.venv/bin/test-writer:*) Bash(npx:*) Bash(cd:*) Bash(source:*) Bash(set:*)
 ---
 
-# Bug-fixer agent
+# Test-writer agent
 
 Generates a Playwright reproduction (plan markdown + spec.ts) from a
 Plane bug ticket, then runs the test against the live sandbox to
-confirm the bug is reproducible. Lives at `agents/bug-fixer/` in this
-repo. Full architecture: `agents/bug-fixer/ARCHITECTURE.md`.
+confirm the bug is reproducible. Lives at `agents/test-writer/` in this
+repo. Full architecture: `agents/test-writer/ARCHITECTURE.md`.
+
+The agent writes tests only — it does not patch source repos, open
+fix-PRs, or otherwise modify the apps. Fixes are a separate manual
+workflow once a reproduction lands.
 
 ## When to use this skill
 
@@ -25,16 +29,16 @@ repo. Full architecture: `agents/bug-fixer/ARCHITECTURE.md`.
 
 - The test is for a confirmed-and-already-fixed feature — write a
   normal `@spec`-tagged test under `tests/auth/`, `tests/apps/`, etc.
-- The bug is intermittent and you have no clear repro steps — run the
-  agent in `--list-only` mode first to see the bug exists in Plane,
-  then iterate on the issue description.
-- You need to fix the bug source itself (this skill only writes the
-  reproduction; the fix is a separate workflow).
+- The bug is intermittent and you have no clear repro steps — run
+  `make list` first to confirm the bug exists in Plane, then iterate
+  on the issue description before invoking.
+- You need to fix the bug source itself (this agent does NOT fix
+  bugs; fixes are a separate manual workflow).
 
 ## Quick start
 
 ```bash
-cd agents/bug-fixer
+cd agents/test-writer
 
 # Survey what's open in Plane without writing anything:
 make list
@@ -52,19 +56,17 @@ make test ID=92 RETRY=1
 
 `make test` sources `.env` automatically and runs `bug-bootstrap.py`
 internally to resolve human IDs to UUIDs and print scope. The
-underlying CLI (`.venv/bin/bug-fixer …`) is still callable for
+underlying CLI (`.venv/bin/test-writer …`) is still callable for
 scripting; see the flags table below.
 
 ## CLI flags
 
 | Flag | Behavior |
 |---|---|
-| `--list-only` | Pulls open Plane bugs (filtered to those labeled bug or `[bug]` in title), prints `[N]  <short-uuid>  <routed-app>  <title>`. No writes. Cheap. |
-| `--test-only --issue-id <uuid>` | The main mode. Routes the bug, writes the plan, writes the test, runs Playwright (2 retries) to verify. Does NOT open a fix-PR. |
-| `--issue-id <uuid>` | Without `--test-only`: full pipeline including fix-writing. **Not what you want most of the time** — the fix step spawns another subagent and writes to a different repo. |
-| `--retry-failed` | Re-runs an issue whose previous attempt failed (state in `agents/state.json`). |
+| `--list-only` | Pulls open Plane bugs (filtered to those labeled bug or `[bug]` in title), prints `[N]  <short-uuid>  <title>`. No writes. Cheap. |
+| `--issue-id <uuid>` | The main mode. Writes the plan, writes the test, runs Playwright (2 retries) to verify the bug reproduces. |
+| `--retry-failed` | Re-runs an issue whose previous attempt failed (state in `agents/test-writer/state.json`). |
 | `--force` | Overwrite an existing `tests/bugs/bug_<id>.spec.ts`. Without this, the agent skips bugs whose reproduction test is already on disk (dedupe guard). |
-| `--dry-run` | Stops before opening any PR. Roughly equivalent to `--test-only` but doesn't retry the verify step. |
 
 ## Output: two files per bug
 
@@ -107,7 +109,7 @@ generated test:
 | Plane admin via SSO | Default fixture + `FOSS_USER`'s Plane workspace role |
 | Plane admin via god-mode | Local creds at `/god-mode/` using `PLANE_ADMIN_USER`/`PLANE_ADMIN_PASS` — bypasses oauth2-proxy entirely |
 
-The agent's prompt (in `agents/bug-fixer/prompts/test_writer.md`)
+The agent's prompt (in `agents/test-writer/prompts/test_writer.md`)
 encodes the decision tree. The CLAUDE.md "Deployment gotchas" table
 captures the per-app constraints.
 
@@ -127,7 +129,7 @@ only — generated tests should still follow the CLAUDE.md
   politeness, deliberate spacing) import `delay` from
   `node:timers/promises` — never as a readiness escape hatch.
 
-The prompt at `agents/bug-fixer/prompts/test_writer.md` is the place
+The prompt at `agents/test-writer/prompts/test_writer.md` is the place
 to enforce this for new generations; the heal phase fixes existing
 ones. When promoting a `tests/bugs/` spec into an invariant folder
 (see "Promotion" below), the meta hygiene spec *will* enforce these
@@ -144,8 +146,8 @@ form shape mismatch, race condition), the iteration loop is:
    (to match) — keep them in sync.
 3. If the failure indicates a missing piece of CLAUDE.md (e.g. mPass
    IDP method picker discovery for FOSSSMBBUN-88), update CLAUDE.md
-   too — that prevents future bug-fixer runs from repeating the same
-   heal step.
+   too — that prevents future test-writer runs from repeating the
+   same heal step.
 
 The cycle is plan → generate → heal: write a plan markdown, generate
 the test from it, heal failures by reconciling test + plan against
@@ -161,11 +163,6 @@ folder (`tests/auth/`, `tests/apps/`, `tests/flows/`, …) and add a
 openspec change proposal (`sso-rules-moneta/openspec/changes/`) if
 the bug exposed a gap in the contract.
 
-See `agents/bug-fixer/ARCHITECTURE.md` §7 ("Build order") for the
-broader roadmap (the dispatcher mode, the cron, the CI test-writer
-workflow — all of which the local CLI covered by this skill is the
-ground truth for).
-
 ## Cost
 
 Local invocation uses your Claude Code subscription (no API spend).
@@ -177,8 +174,8 @@ run.
 
 ## Cross-references
 
-- `agents/bug-fixer/ARCHITECTURE.md` — full pipeline design (Plane → issue → test-writer → test-runner)
-- `agents/bug-fixer/prompts/test_writer.md` — the spec-driven prompt the agent uses
+- `agents/test-writer/ARCHITECTURE.md` — full pipeline design
+- `agents/test-writer/prompts/test_writer.md` — the spec-driven prompt the agent uses
 - `CLAUDE.md` → "Bug spec plan format" / "Heal-phase discipline" — canonical plan template + failure-recovery rules
 - `skills.md` §8 — "Bug staging" overview of where `tests/bugs/` fits relative to the rest of the suite
 - `CLAUDE.md` — suite conventions + per-app gotchas; the agent reads this on every run

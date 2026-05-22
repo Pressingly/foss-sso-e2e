@@ -8,7 +8,7 @@ mechanically. Prints detected scope(s) and the files most worth
 reading first.
 
 Usage (typically called by `make test ID=…`, which extracts the
-resolved UUID from the output and passes it to the bug-fixer CLI):
+resolved UUID from the output and passes it to the test-writer CLI):
     python3 scripts/bug-bootstrap.py <FOSSSMBBUN-N | N | UUID>
 
 Requires (read from os.environ; caller sources .env first):

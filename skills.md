@@ -367,8 +367,8 @@ sandbox (failure = bug confirmed reproducible). The dedicated
 `bug-tests-run.yml` workflow runs them with **normal red-on-fail CI
 semantics** — a failing staging test fails the PR's CI. That red status
 is the explicit signal that the underlying bug isn't fixed yet. They
-are the output of the bug-fixer agent (`agents/bug-fixer/` — see
-`agents/bug-fixer/ARCHITECTURE.md` for the full pipeline design) and
+are the output of the test-writer agent (`agents/test-writer/` — see
+`agents/test-writer/ARCHITECTURE.md` for the full pipeline design) and
 are spec-driven: each one has a sibling plan markdown:
 
 ```
@@ -382,7 +382,7 @@ tests/bugs/bug_<short-id>.spec.ts            — the executable test;
 
 ### Lifecycle
 
-1. **Stage.** Bug-fixer reads a Plane ticket, writes the plan + test
+1. **Stage.** Test-writer reads a Plane ticket, writes the plan + test
    under `tests/bugs/`, opens a PR. The test fails today. The plan is
    the spec of intent.
 2. **Run in CI without polluting the main suite.** The default
@@ -433,7 +433,7 @@ PW_INCLUDE_STAGING=1 PW_DEBUG_VISUAL=1 \
 ### Generating a new staging reproduction
 
 ```bash
-cd agents/bug-fixer
+cd agents/test-writer
 make list                  # see open Plane bugs (read-only)
 make test ID=92            # resolve + scope + write plan + test + verify
 make test ID=92 FORCE=1    # overwrite an existing tests/bugs/bug_<id>.spec.ts
@@ -441,5 +441,5 @@ make test ID=92 FORCE=1    # overwrite an existing tests/bugs/bug_<id>.spec.ts
 
 The agent's prompt enforces the spec-driven flow (plan first, then
 test) and a 3-mode triage so it asks before guessing on ambiguous
-bug reports. Details in `agents/bug-fixer/ARCHITECTURE.md` and the
-`bug-fixer` skill at `.claude/skills/bug-fixer/SKILL.md`.
+bug reports. Details in `agents/test-writer/ARCHITECTURE.md` and the
+`test-writer` skill at `.claude/skills/test-writer/SKILL.md`.

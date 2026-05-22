@@ -10,7 +10,7 @@ Given a bug — a Plane ticket, a captured error, a failing test — figure
 out **where the bug actually lives**: which repo, which file, which env
 var, which Traefik route, which IDP policy. Output a finding document.
 Do **not** write a code patch. Some bugs are infra config; some are
-contract gaps; some span layers. The bug-fixer plugin is what writes
+contract gaps; some span layers. The test-writer agent is what writes
 tests; this skill identifies what needs to change for the fix.
 
 ## When to use
@@ -26,7 +26,7 @@ tests; this skill identifies what needs to change for the fix.
 - You're confident the cause is in one app's UI code — just read that
   app and propose a fix directly
 - You want the **fix** (this skill only writes a finding; the fix is a
-  separate task, in the right repo, by a human or the bug-fixer agent)
+  separate task, in the right repo, by a human or the test-writer agent)
 - The bug is too vague to investigate (no repro steps, no observable) —
   push back to the reporter first
 
@@ -70,7 +70,7 @@ horizontally — it's the spec for what those layers should jointly do.
 | Logout flow | `sso-rules-moneta` | `openspec/specs/logout-flow/spec.md` |
 | Workspace auto-join | `sso-rules-moneta` | `openspec/specs/workspace-auto-join/spec.md` |
 | Test conventions / existing coverage | `foss-sso-e2e` | `CLAUDE.md`, `fixtures.ts`, `auth-helpers.ts`, `tests/auth/`, `tests/apps/<app>.spec.ts` |
-| Bug-fixer agent + spec-driven plans | `foss-sso-e2e/agents/bug-fixer/` | `prompts/`, `src/bug_fixer_agent/`, `tests/bugs/specs/` (existing plans for reference) |
+| Test-writer agent + spec-driven plans | `foss-sso-e2e/agents/test-writer/` | `prompts/`, `src/test_writer_agent/`, `tests/bugs/specs/` (existing plans for reference) |
 
 ## Investigation methodology
 
@@ -100,7 +100,7 @@ Read the Plane ticket. Extract scope by keyword:
 
 **If the ticket is genuinely vague** (no scope keywords, no observable),
 DON'T expand the investigation. Stop and push back to the reporter for
-clarification — same gate as bug-fixer's Mode 3.
+clarification — same gate as test-writer's Mode 3.
 
 ### Step 1 — Capture the symptom precisely
 
@@ -223,7 +223,7 @@ just say where it should go and why.>
 ## Verification path
 
 <How to confirm the fix worked, once applied. Ideally a test under
-tests/bugs/ that the bug-fixer can produce — link to its plan if one
+tests/bugs/ that the test-writer can produce — link to its plan if one
 exists.>
 
 ## Related artifacts
@@ -244,7 +244,7 @@ These are real findings — useful as templates:
 
 ## Cross-references
 
-- `agents/bug-fixer/ARCHITECTURE.md` — full pipeline architecture (this skill is the *diagnosis* counterpart to the *test generation* the bug-fixer does)
-- `.claude/skills/bug-fixer/SKILL.md` — how to run the bug-fixer once root cause + fix location are known
+- `agents/test-writer/ARCHITECTURE.md` — full pipeline architecture (this skill is the *diagnosis* counterpart to the *test generation* the test-writer does)
+- `.claude/skills/test-writer/SKILL.md` — how to run the test-writer once root cause + fix location are known
 - `skills.md` §1–§3 — what the e2e suite already covers; useful for finding existing tests that pin similar invariants
 - `CLAUDE.md` — per-app gotchas (Twenty `networkidle`, Penpot hash routing, Plane god-mode local creds, mPass picker, …) — read this first to rule out known quirks before deep investigation

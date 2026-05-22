@@ -1,6 +1,5 @@
-import os
 import pytest
-from bug_fixer_agent.config import load
+from test_writer_agent.config import load
 
 
 REQUIRED = {
@@ -8,7 +7,6 @@ REQUIRED = {
     "PLANE_BASE_URL": "https://plane.example.com",
     "PLANE_WORKSPACE_SLUG": "myslug",
     "PLANE_PROJECT_ID": "proj-uuid",
-    "GITHUB_TOKEN": "ghp_test",
     "FOSS_USER": "testuser",
     "FOSS_PASS": "testpass",
 }
@@ -38,10 +36,10 @@ def test_load_raises_on_missing_vars(monkeypatch):
 def test_load_raises_on_partial_missing(monkeypatch):
     for k, v in REQUIRED.items():
         monkeypatch.setenv(k, v)
-    monkeypatch.delenv("GITHUB_TOKEN")
+    monkeypatch.delenv("PLANE_API_TOKEN")
     with pytest.raises(EnvironmentError) as exc:
         load()
-    assert "GITHUB_TOKEN" in str(exc.value)
+    assert "PLANE_API_TOKEN" in str(exc.value)
 
 
 def test_log_level_override(monkeypatch):

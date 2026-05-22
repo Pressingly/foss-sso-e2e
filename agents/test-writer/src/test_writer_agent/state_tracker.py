@@ -7,11 +7,7 @@ from typing import Any
 
 STEPS = [
     "pending",
-    "routed",
     "test_written",
-    "fix_written",
-    "pr_opened",
-    "commented",
     "done",
 ]
 
@@ -25,14 +21,7 @@ def _now() -> str:
 def _empty_entry(issue_id: str) -> dict[str, Any]:
     return {
         "status": "pending",
-        "repo": None,
-        "repo_path": None,
         "test_path": None,
-        "fix_paths": [],
-        "pr_url": None,
-        "pr_branch": None,
-        "sub_task_id": None,
-        "comment_id": None,
         "error": None,
         "last_updated": _now(),
         "run_date": datetime.now(tz=timezone.utc).date().isoformat(),
