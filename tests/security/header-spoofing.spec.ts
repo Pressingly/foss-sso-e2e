@@ -4,9 +4,9 @@
 // @spec forwardauth-traefik#header-overwrite-shall-be-enforced
 
 import { test, expect } from "../../fixtures";
-import { request, BrowserContext } from "@playwright/test";
+import { request } from "@playwright/test";
 import { APPS, APP_URLS, isAuthWall } from "../../constants";
-import { extractPenpotTransitField } from "../lib/penpot-transit";
+import { IDENTITY_PROBES } from "../lib/identity-probes";
 import { SPOOFED_HEADERS } from "../lib/spoofed-headers";
 
 // Two tests, addressing two distinct failure modes:
@@ -48,68 +48,6 @@ import { SPOOFED_HEADERS } from "../lib/spoofed-headers";
 //       stacks where Traefik replaces. forwardauth-traefik#header-
 //       overwrite-shall-be-enforced keeps that as an audit invariant;
 //       the live test here is a partial backstop.
-
-async function cookieHeaderFor(ctx: BrowserContext, baseUrl: string): Promise<string> {
-  const cookies = await ctx.cookies(baseUrl);
-  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-}
-
-// Authed identity probes per backend. Same shape as
-// `tests/auth/identity-consistency.spec.ts` — kept inline rather than
-// shared because the two tests assert different things (consistency
-// vs. resistance to spoofing) and decoupling lets each evolve.
-type IdentityProbe = (
-  ctx: BrowserContext,
-  extraHeaders: Record<string, string>
-) => Promise<string>;
-
-const IDENTITY_PROBES: Record<string, IdentityProbe> = {
-  PM: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.PM);
-    const c = await request.newContext({ extraHTTPHeaders: { cookie, ...extra } });
-    try {
-      const r = await c.get(`${APP_URLS.PM}/api/users/me/`);
-      const j = (await r.json()) as { email: string };
-      return j.email;
-    } finally {
-      await c.dispose();
-    }
-  },
-  Outline: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.Outline);
-    const c = await request.newContext({
-      extraHTTPHeaders: { cookie, "content-type": "application/json", ...extra },
-    });
-    try {
-      const r = await c.post(`${APP_URLS.Outline}/api/auth.info`, { data: {} });
-      const j = (await r.json()) as { data: { user: { email: string } } };
-      return j.data.user.email;
-    } finally {
-      await c.dispose();
-    }
-  },
-  SurfSense: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.SurfSense);
-    const c = await request.newContext({ extraHTTPHeaders: { cookie, ...extra } });
-    try {
-      const r = await c.get(`${APP_URLS.SurfSense}/users/me`);
-      const j = (await r.json()) as { email: string };
-      return j.email;
-    } finally {
-      await c.dispose();
-    }
-  },
-  Penpot: async (ctx, extra) => {
-    const cookie = await cookieHeaderFor(ctx, APP_URLS.Penpot);
-    const c = await request.newContext({ extraHTTPHeaders: { cookie, ...extra } });
-    try {
-      const r = await c.get(`${APP_URLS.Penpot}/api/rpc/command/get-profile`);
-      return extractPenpotTransitField(await r.json(), "~:email");
-    } finally {
-      await c.dispose();
-    }
-  },
-};
 
 test.describe("Header spoofing", () => {
   // (A) — auth gate sanity. Cheap and runs without login. Catches a
