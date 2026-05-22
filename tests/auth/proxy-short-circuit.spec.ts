@@ -2,7 +2,7 @@
 // @spec proxy-auth-middleware#authenticated-sessions-with-matching-or-absent-proxy-identity-shall-short-circuit
 
 import { test, expect } from "../../fixtures";
-import { APPS } from "../../constants";
+import { APPS, AUTH_COOKIE } from "../../constants";
 
 // When the SSO session is alive and the X-Auth-Request-Email header
 // matches (or is absent on internal traffic), the per-app middleware
@@ -31,7 +31,7 @@ const APP_SESSION_COOKIE_PATTERNS: RegExp[] = [
   /^connect\.sid$/i, // Express
 ];
 
-const SSO_COOKIE_NAMES = new Set(["_oauth2_proxy"]);
+const SSO_COOKIE_NAMES = new Set([AUTH_COOKIE]);
 
 function isAppSessionCookie(name: string): boolean {
   if (SSO_COOKIE_NAMES.has(name)) return false;
