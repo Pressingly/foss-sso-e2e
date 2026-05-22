@@ -102,8 +102,14 @@ def verify_test_fails(
         "PW_INCLUDE_STAGING": "1",
     }
 
+    # Headed Chrome by default — the test was just generated and a human
+    # is at the keyboard; seeing the browser drive the repro is the
+    # whole point. Set TEST_WRITER_HEADLESS=1 in CI / detached runs
+    # where no display is available.
+    headed_args = [] if os.environ.get("TEST_WRITER_HEADLESS") == "1" else ["--headed"]
+
     result = subprocess.run(
-        ["npx", "playwright", "test", test_path, "--reporter=list"],
+        ["npx", "playwright", "test", test_path, "--reporter=list", *headed_args],
         cwd=e2e_path,
         capture_output=True,
         text=True,
