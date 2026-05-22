@@ -76,14 +76,32 @@ jobs:
       - name: Trigger ZAP active scan on recorded URLs
         run: |
           BASE="${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}"
-          SCAN_ID=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=${BASE}&recurse=true&inScopeOnly=false" | python3 -c 'import sys,json; print(json.load(sys.stdin)["scan"])')
-          echo "Active scan ID: $SCAN_ID"
-          # Poll until 100 % or 30 min timeout.
-          for i in $(seq 1 180); do
-            STATUS=$(curl -s "http://localhost:8080/JSON/ascan/view/status/?scanId=$SCAN_ID" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
-            echo "[$i] scan progress: $STATUS%"
-            [ "$STATUS" = "100" ] && break
-            sleep 10
+          # Derive the per-app hosts from BASE so this stays env-agnostic.
+          # FOSS naming convention: <app>.<platform-host> (e.g. pm.foss.arbisoft.com).
+          PLATFORM_DOMAIN=$(echo "$BASE" | sed -E 's|^https?://||;s|/.*$||')
+          # Active-scan targets (in order). Portal first (SSO surface);
+          # Plane second (first per-app expansion — adding more apps is
+          # one line per host but the FP triage scales linearly).
+          TARGETS=(
+            "$BASE"
+            "https://pm.${PLATFORM_DOMAIN}"
+          )
+
+          for TARGET in "${TARGETS[@]}"; do
+            echo "=== Active-scanning $TARGET ==="
+            SCAN_ID=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=${TARGET}&recurse=true&inScopeOnly=false" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("scan","-1"))')
+            if [ "$SCAN_ID" = "-1" ]; then
+              echo "WARN: ZAP refused to start a scan for $TARGET (probably no recorded URLs under this host)"
+              continue
+            fi
+            echo "scan id: $SCAN_ID"
+            # Poll until 100 % or 30 min timeout per target.
+            for i in $(seq 1 180); do
+              STATUS=$(curl -s "http://localhost:8080/JSON/ascan/view/status/?scanId=$SCAN_ID" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
+              echo "  [$i] $TARGET → $STATUS%"
+              [ "$STATUS" = "100" ] && break
+              sleep 10
+            done
           done
 
       - name: Generate ZAP HTML + JSON reports
