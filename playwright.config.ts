@@ -49,9 +49,15 @@ const DEVICE_BY_BROWSER: Record<BrowserName, string> = {
 const INCLUDE_STAGING = process.env.PW_INCLUDE_STAGING === "1";
 const STAGING_IGNORE = INCLUDE_STAGING ? [] : ["**/tests/bugs/**"];
 
+// tests/zap/ are ZAP-driver specs — they exercise the SSO chain through
+// a ZAP proxy so ZAP can record + active-scan the traffic. Always
+// excluded from default discovery; the dedicated zap-authed-sso.yml
+// workflow targets that file directly.
+const ZAP_IGNORE = ["**/tests/zap/**"];
+
 export default defineConfig({
   testDir: "./tests",
-  testIgnore: STAGING_IGNORE,
+  testIgnore: [...STAGING_IGNORE, ...ZAP_IGNORE],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

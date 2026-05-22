@@ -1,0 +1,106 @@
+name: ZAP Authenticated (SSO chain)
+
+# Runs OWASP ZAP as a proxy, drives the FOSS SSO chain through it with
+# Playwright (so ZAP records the authenticated traffic), then asks ZAP
+# to active-scan the recorded URLs. Catches what the unauthenticated
+# zap-baseline.yml cannot see — the post-login surface of oauth2-proxy
+# + mPass + ForwardAuth.
+#
+# Scoped to the SSO chain only (portal + oauth2-proxy paths + IDP
+# bounce). NOT the 5 apps' interiors — those are upstream OSS and
+# findings there are unactionable from this repo.
+#
+# Schedule: Sunday 07:00 UTC (1 hour after the unauth baseline).
+# workflow_dispatch lets you re-run on demand from the Actions tab.
+
+on:
+  schedule:
+    - cron: "0 7 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write     # to file ZAP findings, parallel to the baseline workflow
+
+jobs:
+  zap-authenticated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start ZAP daemon
+        run: |
+          docker run -d --name zap \
+            -u zap \
+            -p 8080:8080 \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap.sh -daemon -host 0.0.0.0 -port 8080 \
+              -config api.disablekey=true \
+              -config api.addrs.addr.regex=true \
+              -config api.addrs.addr.name=.*
+          # Block until the API answers; ZAP needs ~10-20s to come up.
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/JSON/core/view/version/ >/dev/null; then
+              echo "ZAP ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:8080/JSON/core/view/version/ || { docker logs zap; exit 1; }
+
+      - name: Drive SSO chain through ZAP proxy
+        env:
+          FOSS_BASE_URL: ${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}
+          FOSS_USER: ${{ secrets.SANDBOX_FOSS_USER }}
+          FOSS_PASS: ${{ secrets.SANDBOX_FOSS_PASS }}
+          HTTP_PROXY: http://localhost:8080
+          HTTPS_PROXY: http://localhost:8080
+          NO_PROXY: localhost,127.0.0.1
+        run: |
+          npx playwright test tests/zap/sso-chain.spec.ts \
+            --project=chromium --reporter=list --workers=1
+
+      - name: Trigger ZAP active scan on recorded URLs
+        run: |
+          BASE="${{ vars.SANDBOX_FOSS_BASE_URL || 'https://foss.arbisoft.com' }}"
+          SCAN_ID=$(curl -s "http://localhost:8080/JSON/ascan/action/scan/?url=${BASE}&recurse=true&inScopeOnly=false" | python3 -c 'import sys,json; print(json.load(sys.stdin)["scan"])')
+          echo "Active scan ID: $SCAN_ID"
+          # Poll until 100 % or 30 min timeout.
+          for i in $(seq 1 180); do
+            STATUS=$(curl -s "http://localhost:8080/JSON/ascan/view/status/?scanId=$SCAN_ID" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
+            echo "[$i] scan progress: $STATUS%"
+            [ "$STATUS" = "100" ] && break
+            sleep 10
+          done
+
+      - name: Generate ZAP HTML + JSON reports
+        if: always()
+        run: |
+          mkdir -p zap-reports
+          curl -s "http://localhost:8080/OTHER/core/other/htmlreport/" -o zap-reports/report.html || true
+          curl -s "http://localhost:8080/JSON/core/view/alerts/" -o zap-reports/alerts.json || true
+
+      - name: Capture ZAP container logs (on failure)
+        if: failure()
+        run: docker logs zap > zap-reports/zap.log 2>&1 || true
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-authenticated-report
+          path: zap-reports/
+          retention-days: 30
