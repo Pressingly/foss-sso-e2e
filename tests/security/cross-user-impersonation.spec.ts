@@ -165,7 +165,7 @@ raw.describe("Cross-user impersonation — spoofing the real admin identity", ()
           expect(
             spoofed.toLowerCase(),
             `${appName}: backend response contained FOSS_USER's email under spoof — even if NORMAL_USER's email is also present, the contract requires the inbound header to be stripped entirely`,
-          ).not.toBe(fossEmail);
+          ).not.toContain(fossEmail);
         } finally {
           await ctx.close();
         }
