@@ -21,7 +21,7 @@
 
 import { test, expect } from "../../fixtures";
 import { request, type BrowserContext } from "@playwright/test";
-import { APP_URLS, COOKIE_DOMAIN, IDP_REGEX, isAuthWall } from "../../constants";
+import { APP_URLS, COOKIE_DOMAIN } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
 
 // Per-app session-cookie name patterns for theft checks in this spec.
@@ -258,8 +258,3 @@ test.describe("Per-app session cookie attributes (defenses against theft)", () =
     });
   }
 });
-
-// Silence unused-import for IDP_REGEX / isAuthWall — kept available in
-// case (A) needs to assert "redirected to IDP" more precisely later.
-void IDP_REGEX;
-void isAuthWall;
