@@ -48,11 +48,11 @@ test-security: ## Run security tests
 test-all-browsers: ## Run full suite on chromium+firefox+webkit
 	$(NPM) run test:all-browsers
 
-test-spec: ## Run one Playwright spec by full path (usage: make test-spec SPEC=tests/security/headers.spec.ts PW_PROJECT=chromium)
+test-spec: ## Run one spec (SPEC=tests/.../foo.spec.ts [HEADED=1] [GREP="pattern"] [PW_PROJECT=chromium])
 	if [ -z "$(SPEC)" ]; then echo "SPEC is required (example: make test-spec SPEC=tests/security/headers.spec.ts)"; exit 2; fi
-	npx dotenv -- playwright test "$(SPEC)" --project="$(PW_PROJECT)"
+	npx dotenv -- playwright test "$(SPEC)" --project="$(PW_PROJECT)" $(if $(HEADED),--headed) $(if $(GREP),--grep "$(GREP)") --reporter=list --workers=1
 
-test-one: ## Run one Playwright spec by filename substring (usage: make test-one NAME=pm-project-create)
+test-one: ## Run one spec by filename substring (NAME=<substring> [HEADED=1] [GREP="test name pattern"])
 	@if [ -z "$(NAME)" ]; then \
 		echo "NAME is required (example: make test-one NAME=pm-project-create)"; \
 		exit 2; \
@@ -69,7 +69,7 @@ test-one: ## Run one Playwright spec by filename substring (usage: make test-one
 		exit 1; \
 	fi; \
 	echo "→ $$matches"; \
-	PW_INCLUDE_STAGING=1 npx dotenv -- playwright test "$$matches" --project="$(PW_PROJECT)" --reporter=list --workers=1
+	PW_INCLUDE_STAGING=1 npx dotenv -- playwright test "$$matches" --project="$(PW_PROJECT)" $(if $(HEADED),--headed) $(if $(GREP),--grep "$(GREP)") --reporter=list --workers=1
 
 report: ## Open Playwright HTML report
 	$(NPM) run report
