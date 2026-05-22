@@ -208,7 +208,7 @@ test.describe("Per-app session cookies alone are NOT standalone credentials", ()
 // ---------------------------------------------------------------------------
 test.describe("Per-app session cookie attributes (defenses against theft)", () => {
   for (const appName of Object.keys(APP_NAME_TO_URL) as Array<keyof typeof APP_NAME_TO_URL>) {
-    test(`${appName}: per-app session cookies are HttpOnly + Secure + host-scoped`, async ({
+    test(`${appName}: per-app session cookies are HttpOnly + Secure + app/parent-domain scoped`, async ({
       context,
       page,
     }) => {
