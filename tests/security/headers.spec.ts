@@ -147,26 +147,45 @@ test.describe("Security headers", () => {
 });
 
 // ---------------------------------------------------------------------------
-// HTML-only hardening: CSP + Cross-Origin-Opener-Policy + Cross-Origin-Resource-Policy.
+// HTML-only hardening on the portal: CSP + COOP + CORP.
 //
-// These three headers only make sense on HTML responses — checking them
-// on /favicon.ico or on the oauth2-proxy /oauth2/sign_in redirect would
-// be noise. Scoped to the main portal + per-app landing pages: the HTML
-// surfaces a real user types passwords on and where app JS executes.
+// SCOPE: portal only — NOT the 5 apps. Why:
 //
-//   • CSP    — defense-in-depth against XSS exfiltrating the SSO cookie
-//              or making background fetches to an attacker origin.
-//   • COOP   — isolates the browsing context group so a cross-origin
-//              window opener cannot probe window.opener / postMessage
-//              (tabnabbing, opener-redirect, Spectre side-channels).
-//   • CORP   — declares whether sub-resources can be embedded by other
-//              origins; absence means implicit cross-origin embed.
+//   The bundle (Traefik + oauth2-proxy + mpass-auth-proxy) owns the
+//   portal HTML, so it can pick a CSP/COOP/CORP combination that
+//   matches what the portal actually loads. For the 5 apps, the
+//   bundle CANNOT pick a sensible CSP: each app has different
+//   inline / external / data: URI needs (Penpot's SVG handling,
+//   Outline's inline styles, Twenty's CodeMirror, etc.) and a
+//   bundle-imposed CSP would break them.
+//
+//   Empirical confirmation (ZAP authenticated scan, May 2026 + per-
+//   app upstream checks):
+//     • Penpot deliberately doesn't ship CSP (penpot/penpot#9473
+//       merged the security-header rollout without CSP).
+//     • Outline ships its own CSP (with wildcard + unsafe-inline,
+//       which ZAP flags — but it's Outline's choice).
+//     • Plane / SurfSense / Twenty ship no CSP (similar to Penpot).
+//
+//   So the CSP/COOP/CORP contract is between the BUNDLE and the
+//   PORTAL. App-side CSP is each app's call; this test doesn't
+//   enforce it.
+//
+//   Header purpose recap:
+//     • CSP    — defense-in-depth against XSS exfiltrating the SSO
+//                cookie or making background fetches to an attacker
+//                origin.
+//     • COOP   — isolates the browsing context group; defends
+//                against tabnabbing / opener-probe / Spectre.
+//     • CORP   — declares whether sub-resources can be embedded by
+//                other origins; absence means implicit cross-origin.
+//
+//   The 5 universal HEADER_RULES above (HSTS, XCO, XFO, Referrer,
+//   Permissions) DO apply to every target including all 5 apps —
+//   those are scope-independent.
 // ---------------------------------------------------------------------------
-test.describe("HTML hardening headers (CSP, COOP, CORP)", () => {
-  const HTML_TARGETS = [
-    { name: "Main portal", url: MAIN_URL },
-    ...APPS.map((a) => ({ name: a.name, url: a.url })),
-  ];
+test.describe("HTML hardening headers (CSP, COOP, CORP) — portal only", () => {
+  const HTML_TARGETS = [{ name: "Main portal", url: MAIN_URL }];
 
   for (const target of HTML_TARGETS) {
     test(`${target.name} serves CSP + COOP + CORP on HTML responses`, async () => {
