@@ -89,17 +89,54 @@ npm run report            # open last HTML report
 Makefile shortcuts:
 
 ```bash
-make help
-make test
-make test-security
-make test-spec SPEC=tests/security/headers.spec.ts PW_PROJECT=chromium
+make help                          # list all targets
+
+# Bulk runs (headless, same as CI)
+make test                          # full suite, chromium
+make test-auth                     # tests/auth/
+make test-apps                     # tests/apps/
+make test-flows                    # tests/flows/
+make test-security                 # tests/security/
+make test-all-browsers             # chromium + firefox + webkit
 ```
 
-Filter by name:
+Running **one test locally** — these three convenience targets default
+to **visible Chrome** (headed) so you can watch the browser; pass
+`HEADED=0` to force headless. CI auto-detects `$CI` and runs headless
+without needing the override.
+
+| Target | Variable | When to use |
+|---|---|---|
+| `test-spec` | `SPEC=` (full path) | You're pasting a file path |
+| `test-one` | `NAME=` (filename substring) | "Run the outline-admin tests" |
+| `test-name` | `NAME=` (test name) | Paste the text after `›` from a CI failure line |
 
 ```bash
-npx dotenv -- npx playwright test -g "Log out of all apps"
+# Run a whole file (39 outline-admin tests)
+make test-spec SPEC=tests/apps/outline-admin.spec.ts
+make test-one  NAME=outline-admin
+
+# Run ONE test (by name — works across the whole suite)
+make test-name NAME="admin reaches /settings/integrations"
+
+# Narrow inside a file with --grep
+make test-one NAME=outline-admin GREP="/settings/integrations"
+
+# Force headless (rare locally; default in CI)
+make test-name NAME="..." HEADED=0
 ```
+
+## Why some tests skip
+
+Every `test.skip(...)` / `raw.skip(...)` in this suite is intentional —
+not a TODO or broken test. Four categories:
+
+| Reason | Where | Why |
+|---|---|---|
+| Missing env credentials | `tests/apps/*-admin.spec.ts`, `tests/apps/pm-godmode.spec.ts`, `tests/flows/identity-switch-after-relogin.spec.ts`, `tests/bugs/bug_dc998ba0.spec.ts` | Tests that need a second identity (`NORMAL_USER`) or local Plane creds (`PLANE_ADMIN_USER`) self-skip when unset, so the suite is portable to deployments without those identities provisioned |
+| Vacuously-satisfied invariant | `tests/auth/proxy-short-circuit.spec.ts`, `tests/auth/logout-invariants.spec.ts` | The deployment doesn't expose the surface the test checks (e.g. no JS-readable session cookie to rotate) — the contract is satisfied trivially |
+| App-shape opt-out | `tests/lib/link-coverage.ts` | Apps with no `<a href>` nav (button-only SPAs) skip link-crawl assertions via `requireLinks=false` |
+| Browser-matrix dedup | `tests/meta/playwright-practices.spec.ts` | The static hygiene grep is browser-independent — runs once on Chromium, dedups on Firefox/WebKit |
 
 ## What's covered
 
