@@ -36,6 +36,7 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 
 - `Layer 1 SHALL refresh transparently against OIDC` — **Genuine test gap** — would need to fast-forward time or shorten TTL in a test bundle; not yet wired.
 - `Layer 1 expiry while Layer 2 is valid SHALL re-auth transparently` — **Genuine test gap** — same TTL constraint.
+- `Layer 1 expiry shall force a fresh Cognito login` — **Genuine test gap** — same TTL constraint (would need a short-TTL bundle or time-fast-forward to expire Layer 1 deliberately).
 - `mPass-side session revocation SHALL be honoured on next refresh` — **Cognito-side** — requires admin API call to revoke a refresh token; not in CI scope today.
 - `per-app session TTLs SHALL be uniformly configurable` — **Infra-only**.
 - `Layer-2 session renewal SHALL be guarded against three regression paths` — **Partially covered** — `tests/auth/layer2-renewal-suppressed-on-4xx.spec.ts` pins the Penpot/`auth-token` case (4xx response must carry no fresh session cookie). Extending to Outline (`accessToken`) and Plane (`sessionid`) is the same shape with different per-app cookie names.
