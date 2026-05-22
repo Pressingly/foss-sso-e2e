@@ -52,6 +52,14 @@ test-spec: ## Run one spec (SPEC=tests/.../foo.spec.ts [HEADED=1] [GREP="pattern
 	if [ -z "$(SPEC)" ]; then echo "SPEC is required (example: make test-spec SPEC=tests/security/headers.spec.ts)"; exit 2; fi
 	npx dotenv -- playwright test "$(SPEC)" --project="$(PW_PROJECT)" $(if $(HEADED),--headed) $(if $(GREP),--grep "$(GREP)") --reporter=list --workers=1
 
+test-name: ## Run any test by name pattern across the whole suite (NAME="test name or substring" [HEADED=1])
+	@if [ -z "$(NAME)" ]; then \
+		echo "NAME is required (example: make test-name NAME=\"Outline: per-app Logout\")"; \
+		echo "Tip: paste the test name from a CI failure line — it's the bit after the › arrow."; \
+		exit 2; \
+	fi
+	PW_INCLUDE_STAGING=1 npx dotenv -- playwright test --grep "$(NAME)" --project="$(PW_PROJECT)" $(if $(HEADED),--headed) --reporter=list --workers=1
+
 test-one: ## Run one spec by filename substring (NAME=<substring> [HEADED=1] [GREP="test name pattern"])
 	@if [ -z "$(NAME)" ]; then \
 		echo "NAME is required (example: make test-one NAME=pm-project-create)"; \
