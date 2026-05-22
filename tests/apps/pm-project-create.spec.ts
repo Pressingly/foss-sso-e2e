@@ -51,16 +51,27 @@ test.describe("Plane: workspace project creation", () => {
 
       // Track 4xx/5xx on the create-project endpoint during submit. Helps
       // diagnose storage-backend regressions where the API returns
-      // 400-class with a misleading "cannot upload" body.
+      // 400-class with a misleading "cannot upload" body — and any
+      // future validation rejection (e.g. PROJECT_NAME_CANNOT_CONTAIN_*).
+      // Body capture is async; pendingErrorReads is drained before
+      // assertions so the body lands in the failure message instead of
+      // forcing a local repro to discover.
       const projectsApiErrors: string[] = [];
+      const pendingErrorReads: Promise<void>[] = [];
       page.on("response", (res) => {
         const u = res.url();
         if (!u.startsWith(APP_URLS.PM)) return;
         if (!PROJECTS_API_RE.test(u)) return;
         const status = res.status();
-        if (status >= 400) {
-          projectsApiErrors.push(`${status} ${res.request().method()} ${u}`);
-        }
+        if (status < 400) return;
+        pendingErrorReads.push(
+          (async () => {
+            const body = await res.text().catch(() => "<unreadable>");
+            projectsApiErrors.push(
+              `${status} ${res.request().method()} ${u} — body: ${body.slice(0, 300)}`,
+            );
+          })(),
+        );
       });
 
       // 2. Locate the project-creation entry point. The shared FOSS_USER
@@ -103,7 +114,17 @@ test.describe("Plane: workspace project creation", () => {
       ).toBeVisible({ timeout: 15_000 });
 
       // 4. Fill a unique name (cleared up in `finally`).
-      const projectName = `e2e-create-${Date.now()}`;
+      //    Two constraints from Plane's create API:
+      //      • Plane rejects hyphens/underscores/punctuation in names
+      //        (PROJECT_NAME_CANNOT_CONTAIN_SPECIAL_CHARACTERS) — use spaces.
+      //      • Plane auto-derives a 3-5 char project identifier from the
+      //        name's first letters. If two projects (across all time)
+      //        produce the same auto-identifier, the second fails with
+      //        PROJECT_IDENTIFIER_ALREADY_EXIST. So the name needs to
+      //        vary in its leading alphabetical characters — a random
+      //        alpha tag guarantees a unique derived identifier per run.
+      const tag = Math.random().toString(36).slice(2, 8);
+      const projectName = `e2e ${tag} ${Date.now()}`;
       await nameInput.fill(projectName);
       await expect(nameInput).toHaveValue(projectName);
 
@@ -174,6 +195,9 @@ test.describe("Plane: workspace project creation", () => {
         .catch(() => false);
       const urlMovedOffProjectsList = !/\/projects\/?(\?|$)/.test(page.url());
 
+      // Drain any in-flight body reads before reading projectsApiErrors.
+      await Promise.all(pendingErrorReads);
+
       const failures: string[] = [];
       if (projectsApiErrors.length) {
         failures.push(
@@ -208,7 +232,11 @@ test.describe("Plane: workspace project creation", () => {
       // if the delete fails, log it (CI will surface the noise) but
       // don't mask a passing test result.
       if (createdProjectId) {
-        const deleteUrl = `${APP_URLS.PM}/api/v1/workspaces/${PLANE_WORKSPACE_SLUG}/projects/${createdProjectId}/`;
+        // Match the same path the create-POST uses — `/api/workspaces/...`
+        // (no `/v1/` segment). Hitting the wrong path silently 404s
+        // inside the .catch and orphans projects, which then cause
+        // PROJECT_IDENTIFIER_ALREADY_EXIST on subsequent runs.
+        const deleteUrl = `${APP_URLS.PM}/api/workspaces/${PLANE_WORKSPACE_SLUG}/projects/${createdProjectId}/`;
         await context.request.delete(deleteUrl).catch((e) => {
           // eslint-disable-next-line no-console
           console.error(
