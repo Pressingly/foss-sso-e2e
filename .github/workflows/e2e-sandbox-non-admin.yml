@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-sandbox-non-admin
           path: playwright-report/
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload failure traces / videos
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-sandbox-non-admin
           path: test-results/
