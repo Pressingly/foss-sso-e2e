@@ -168,11 +168,16 @@ def _process_issue(
         log.info(f"[{issue_id[:8]}] done. test path: {test_path}")
     except BugNotReproducible:
         # Stay at `test_written` so the user can iterate on the test
-        # (adjust loop count, fix selectors, etc.) and re-run.
+        # (adjust loop count, fix selectors, etc.) and re-run. Post a
+        # Plane comment so the reporter sees we tried; we do NOT change
+        # the Plane ticket status — that's a human decision.
         log.warning(
             f"[{issue_id[:8]}] test passed {attempts}/{attempts} attempts — "
             f"bug not reproduced. Test path: {test_path}. State left at 'test_written' "
             f"for iteration; pass --force to regenerate the test."
+        )
+        _comment_not_reproducible(
+            plane, cfg.plane_project_id, issue_id, test_path, attempts
         )
     except SubagentError as e:
         state.mark_failed(issue_id, f"verify: {e}")
@@ -182,6 +187,35 @@ def _process_issue(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _comment_not_reproducible(
+    plane: PlaneClient, project_id: str, issue_id: str, test_path: str, attempts: int
+) -> None:
+    """Post a Plane comment when the generated test could not reproduce the bug.
+
+    Status is intentionally NOT changed — closing or re-opening the ticket
+    is a human decision. We only record the agent's finding so the
+    reporter sees that a repro attempt happened.
+    """
+    body = (
+        f"**Could not reproduce this bug against https://foss.arbisoft.com.**\n\n"
+        f"A Playwright test was written at `{test_path}` and run "
+        f"{attempts}× — all attempts passed, meaning the described behavior "
+        f"was not observed.\n\n"
+        f"Ticket status left unchanged. Please verify the reproduction "
+        f"steps and either:\n"
+        f"- update this ticket with more specific steps + a re-run will "
+        f"pick them up, or\n"
+        f"- close the ticket if the underlying issue has since been "
+        f"resolved.\n\n"
+        f"_Posted automatically by the test-writer agent._"
+    )
+    try:
+        plane.post_comment(project_id, issue_id, body)
+        log.info(f"[{issue_id[:8]}] posted 'not reproducible' comment to Plane")
+    except Exception as e:
+        log.warning(f"[{issue_id[:8]}] could not post Plane comment: {e}")
+
 
 def _verify_with_retries(
     test_path: str,
