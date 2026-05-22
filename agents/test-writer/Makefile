@@ -1,4 +1,4 @@
-# Bug-fixer Makefile — convenience wrapper around bug-fixer CLI invocations.
+# Test-writer Makefile — convenience wrapper around test-writer CLI invocations.
 #
 # Two verbs cover the whole workflow:
 #
@@ -20,7 +20,7 @@ ENV := set -a; . ./.env; set +a;
 .PHONY: help list test state-clean venv install
 
 help: ## Show available targets
-	@printf 'Bug-fixer targets\n\n'
+	@printf 'Test-writer targets\n\n'
 	@printf '  %-40s %s\n' 'make list'                   'List open Plane bugs (read-only; no writes).'
 	@printf '  %-40s %s\n' 'make test ID=<N|UUID>'       'Resolve + scope + write plan/test + verify reproduction.'
 	@printf '  %-40s %s\n' 'make test ID=<N> FORCE=1'    'Overwrite an existing tests/bugs/bug_<id>.spec.ts.'
@@ -32,11 +32,11 @@ help: ## Show available targets
 	@printf 'Notes\n'
 	@printf '  - All targets read .env from this directory. Required vars:\n'
 	@printf '      PLANE_API_TOKEN, PLANE_BASE_URL, PLANE_WORKSPACE_SLUG, PLANE_PROJECT_ID,\n'
-	@printf '      FOSS_USER, FOSS_PASS  (and DEVSTACK_PATH, GITHUB_TOKEN for full pipeline)\n'
+	@printf '      FOSS_USER, FOSS_PASS\n'
 	@printf '  - `make test` accepts ID as FOSSSMBBUN-N, just N, or full UUID.\n'
 
 list:
-	@$(ENV) .venv/bin/bug-fixer --list-only
+	@$(ENV) .venv/bin/test-writer --list-only
 
 test:
 	@if [ -z "$(ID)" ]; then \
@@ -49,7 +49,7 @@ test:
 	uuid=$$(echo "$$output" | awk '/^UUID:/ {print $$2}'); \
 	if [ -z "$$uuid" ]; then echo "could not resolve UUID for $(ID)" >&2; exit 1; fi; \
 	echo ""; \
-	$(ENV) .venv/bin/bug-fixer --test-only --issue-id $$uuid $(if $(FORCE),--force) $(if $(RETRY),--retry-failed)
+	$(ENV) .venv/bin/test-writer --issue-id $$uuid $(if $(FORCE),--force) $(if $(RETRY),--retry-failed)
 
 state-clean:
 	@rm -f state.json state.json.tmp

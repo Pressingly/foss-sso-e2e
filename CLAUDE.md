@@ -115,7 +115,7 @@ this suite's scope; the bundle-side `audit-sso.sh` covers infra-only.
 ## Bug spec plan format
 
 Every file under `tests/bugs/specs/<bug>.plan.md` follows this shape.
-The bug-fixer agent and human authors both write to this template; the
+The test-writer agent and human authors both write to this template; the
 test file's leading `// spec:` comment points back at the plan.
 
 ```markdown

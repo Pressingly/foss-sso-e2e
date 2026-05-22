@@ -1,7 +1,7 @@
 import pytest
 import respx
 import httpx
-from bug_fixer_agent.plane_client import PlaneClient, PlaneError, BUG_LABEL_ID
+from test_writer_agent.plane_client import PlaneClient, PlaneError, BUG_LABEL_ID
 
 BASE = "https://plane.example.com"
 SLUG = "testslug"

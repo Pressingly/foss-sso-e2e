@@ -3,7 +3,7 @@ requires = ["setuptools>=70"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bug-fixer-agent"
+name = "test-writer-agent"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -18,7 +18,7 @@ dev = [
 ]
 
 [project.scripts]
-bug-fixer = "bug_fixer_agent.orchestrator:main"
+test-writer = "test_writer_agent.orchestrator:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

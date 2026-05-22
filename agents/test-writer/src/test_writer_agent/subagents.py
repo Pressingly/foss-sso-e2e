@@ -14,8 +14,8 @@ class BugNotReproducible(Exception):
     """Raised when the written test passes (bug cannot be confirmed)."""
 
 
-# Agent now lives inside the e2e repo; the e2e root is four levels up
-# from this file (bug_fixer_agent → src → bug-fixer → agents → repo root).
+# Agent lives inside the e2e repo; the e2e root is four levels up from
+# this file (test_writer_agent → src → test-writer → agents → repo root).
 E2E_REPO_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
 )
@@ -98,7 +98,7 @@ def verify_test_fails(
         "FOSS_USER": foss_user or os.environ.get("FOSS_USER", ""),
         "FOSS_PASS": foss_pass or os.environ.get("FOSS_PASS", ""),
         # tests/bugs/ is excluded from default discovery by playwright.config.ts;
-        # the bug-fixer writes there, so we must opt in to discover the test.
+        # the test-writer writes there, so we must opt in to discover the test.
         "PW_INCLUDE_STAGING": "1",
     }
 
@@ -128,41 +128,6 @@ def verify_test_fails(
         )
 
     return output
-
-
-def write_fix(
-    issue_id: str,
-    issue_title: str,
-    issue_description: str,
-    repo_name: str,
-    repo_path: str,
-    test_path: str,
-) -> list[str]:
-    """
-    Spawns a claude subagent to fix the bug in the source repo.
-    Returns list of absolute paths of modified/created files.
-    """
-    prompt = _load_prompt(
-        "fix_agent.md",
-        ISSUE_ID=issue_id,
-        ISSUE_TITLE=issue_title,
-        ISSUE_DESCRIPTION=issue_description,
-        REPO_NAME=repo_name,
-        REPO_PATH=repo_path,
-        TEST_PATH=test_path,
-    )
-
-    output = _invoke_claude(prompt, allowed_tools=["Read", "Write", "Edit", "Bash"], timeout_seconds=1200)
-
-    match = re.search(r"FIX_PATHS:\s*(.+)", output)
-    if not match:
-        raise SubagentError(
-            f"Fix agent did not emit FIX_PATHS line for issue {issue_id}.\n"
-            f"Output tail:\n{output[-500:]}"
-        )
-
-    paths = [p.strip() for p in match.group(1).split(",") if p.strip()]
-    return paths
 
 
 # ---------------------------------------------------------------------------

@@ -85,7 +85,7 @@ app context, contradictory descriptions.
 ## Common Mode 2 ambiguities to watch for
 
 These come up often. CLAUDE.md's "Deployment gotchas" is the canonical
-source; this list highlights bug-fixer-relevant ones:
+source; this list highlights test-writer-relevant ones:
 
 - **Admin path (Plane)?** Distinguish:
   - (a) **admin-via-SSO** — user is `FOSS_USER` with their Plane workspace
