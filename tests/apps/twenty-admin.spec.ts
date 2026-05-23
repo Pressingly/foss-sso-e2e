@@ -19,8 +19,15 @@ const ADMIN_URL = `${BASE}/settings/admin-panel`;
 // cognitoLogin into a fresh context with NORMAL_USER.
 const NORMAL_USER = process.env.NORMAL_USER;
 const NORMAL_PASS = process.env.NORMAL_PASS;
-const TWENTY_ADMIN_USER = process.env.TWENTY_ADMIN_USER ?? process.env.FOSS_USER;
-const TWENTY_ADMIN_PASS = process.env.TWENTY_ADMIN_PASS ?? process.env.FOSS_PASS;
+// TWENTY_ADMIN_USER must be EXPLICITLY set — no FOSS_USER fallback. After
+// SMB-workspace provisioning (foss-server-bundle/scripts/provision-admin/),
+// FOSS_USER is only a *workspace* Admin in Twenty (via the bootstrap-sso-admin
+// CLI), NOT instance admin. Instance admin requires a separate DB flag for
+// `User.canAccessFullAdminPanel = true` that the SMB script intentionally
+// does NOT set. The positive admin-panel test below needs an identity that
+// has both — provision one out-of-band and set TWENTY_ADMIN_USER/PASS.
+const TWENTY_ADMIN_USER = process.env.TWENTY_ADMIN_USER;
+const TWENTY_ADMIN_PASS = process.env.TWENTY_ADMIN_PASS;
 
 // Twenty is the only app in the bundle with a real `/admin` URL distinct
 // from workspace-level admin. Two separate concepts live behind the same
@@ -157,9 +164,10 @@ raw.describe("Twenty — admin-panel gated for non-admin SSO user", () => {
 
 // ---------------------------------------------------------------------------
 // (C) SSO-authed as TWENTY_ADMIN_USER: the admin panel must render.
-// This intentionally uses explicit admin credentials instead of the
-// worker fixture account so CI can run against environments where
-// FOSS_USER is not a Twenty full-admin.
+// Requires explicit admin credentials. Post-SMB-provisioning, FOSS_USER
+// is only a Twenty workspace Admin — `canAccessFullAdminPanel` lives on
+// a separate DB flag that the SMB script does not set. This block
+// self-skips unless TWENTY_ADMIN_USER + TWENTY_ADMIN_PASS are provided.
 // ---------------------------------------------------------------------------
 
 raw.describe("Twenty — admin-panel reachable for TWENTY_ADMIN_USER", () => {

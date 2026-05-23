@@ -117,16 +117,19 @@ raw.describe("Plane — NORMAL_USER auto-joined as Member (not Admin)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// (3) SSO-authed as FOSS_USER: same shape — auto-joined as Member,
-//     reaches the page, NOT an Admin. Uses the worker fixture identity.
+// (3) SSO-authed as FOSS_USER: post-SMB-provisioning, FOSS_USER is the
+//     workspace Owner of `fossarbisoft` (promoted by
+//     foss-server-bundle/scripts/provision-admin/plane.py). So unlike
+//     NORMAL_USER (block 2) they CAN see the 'Add member' affordance.
 //
-// FOSS_USER is admin in OTHER apps (Outline role=admin, Penpot/SurfSense
-// Owner of own workspace, Twenty canAccessFullAdminPanel) — but in Plane's
-// sandbox they're a Member of `fossarbisoft`, same as NORMAL_USER. Only the
-// bootstrap `system-bot` account holds the Admin role.
+// The auto-join Member contract is still pinned by block (2) above —
+// NORMAL_USER auto-joins as Member and is gated. This block separately
+// pins the positive Owner-after-provisioning case so that if the
+// provisioning regresses (FOSS_USER stays at Member), the 'Add member'
+// button disappears and the test fails loudly.
 // ---------------------------------------------------------------------------
-test.describe("Plane — FOSS_USER auto-joined as Member (not Admin)", () => {
-  test("FOSS_USER reaches the Members page but cannot 'Add member'", async ({
+test.describe("Plane — FOSS_USER is workspace Owner (SMB provisioned)", () => {
+  test("FOSS_USER reaches the Members page AND can 'Add member'", async ({
     page,
   }) => {
     await page.goto(MEMBERS_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
@@ -144,7 +147,7 @@ test.describe("Plane — FOSS_USER auto-joined as Member (not Admin)", () => {
 
     await expect(
       page.getByRole("button", { name: /^add member$/i }),
-      "FOSS_USER must NOT see the 'Add member' button on the sandbox: in Plane they are auto-joined as Member, not Admin. If this becomes visible, either the test's deployment assumption is stale (FOSS_USER was promoted) or the workspace-auto-join role grant escalates above Member."
-    ).toBeHidden();
+      "FOSS_USER must see the 'Add member' button: post-SMB-provisioning they are workspace Owner of `fossarbisoft`. If this is hidden, the Plane provisioning script (foss-server-bundle/scripts/provision-admin/plane.py) didn't run or didn't pick up the correct email — FOSS_USER is back to auto-joined-Member."
+    ).toBeVisible();
   });
 });

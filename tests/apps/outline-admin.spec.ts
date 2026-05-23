@@ -1,7 +1,11 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
 // @spec workspace-auto-join#auto-join-role-shall-be-the-apps-regular-member-role-not-admin-or-guest
 // (partial — proves NORMAL_USER auto-joined as non-admin Outline user;
-// admin-only /settings/* pages are gated for them and reachable for FOSS_USER)
+// admin-only /settings/* pages are gated for them server-side. The
+// positive workspace-admin half (FOSS_USER reaches every /settings page)
+// was removed when SMB-workspace provisioning replaced FOSS_USER's
+// workspace-level `users.role = 'admin'` with team-admin scope only.
+// See block (3) comment below.)
 
 import { test, expect } from "../../fixtures";
 import { test as raw, type Page } from "@playwright/test";
@@ -241,29 +245,26 @@ raw.describe("Outline — non-admin role split (NORMAL_USER)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// (3) Positive side of the role contract: FOSS_USER (the admin per
-//     admin.md) reaches every /settings/* page without hitting the
-//     non-admin gating signals. Uses the worker fixture directly.
+// (3) REMOVED: positive workspace-admin assertions on FOSS_USER.
+//
+// Prior to the SMB-workspace provisioning model
+// (foss-server-bundle/scripts/provision-admin/), FOSS_USER had
+// users.role = "admin" at the Outline workspace level — so
+// `admin reaches /settings/X with a real page title` worked for
+// every /settings/* sub-page. Post-provisioning, FOSS_USER is only
+// a team admin on the SMB team (OUTLINE_TEAM_ID) — they no longer
+// reach workspace-level /settings/* pages.
+//
+// The workspace-admin role now belongs to `system-bot@foss.arbisoft.com`,
+// which is a service account without an SSO password — not loginable
+// from Playwright. So we can't positively test the workspace-admin
+// path from this suite anymore.
+//
+// What's still covered:
+//   • Block (1) — cold-context gating proves /settings/* is behind SSO.
+//   • Block (2) — NORMAL_USER (auto-joined non-admin) is correctly
+//     gated server-side from the admin-only sub-pages.
+//   • The `OUTLINE_TEAM_ID` constant in constants.ts hoists the SMB
+//     team UUID for any future SMB-team-admin positive test (e.g.,
+//     "team-admin can rename the SMB team").
 // ---------------------------------------------------------------------------
-test.describe("Outline — admin (FOSS_USER) reaches every /settings page", () => {
-  for (const path of ALL_PATHS) {
-    test(`admin reaches ${path} with a real page title`, async ({ page }) => {
-      await gotoSettingsPath(page, path);
-
-      await expect(page).toHaveURL(new RegExp(`https?://${escapeRegex(DOCS_HOST)}`));
-      expect(isAuthWall(page.url()), `Admin bounced to auth wall on ${path}: ${page.url()}`).toBe(false);
-      await expect(page).toHaveURL(new RegExp(`${escapeRegex(path)}(\\?|$)`));
-
-      const title = await waitForSpaTitle(page);
-      const gatedForNonAdmin =
-        title === "outline" ||
-        title.includes("not found") ||
-        title.includes("404") ||
-        title.includes("module failed to load");
-      expect(
-        gatedForNonAdmin,
-        `Admin must reach ${path} cleanly — title looks gated/unloaded: "${title}"`
-      ).toBe(false);
-    });
-  }
-});
