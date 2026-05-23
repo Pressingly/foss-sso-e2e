@@ -152,6 +152,14 @@ export const OUTLINE_TEAM_ID =
 export const SURFSENSE_SEARCH_SPACE_ID =
   env("SURFSENSE_SEARCH_SPACE_ID", "1");
 
+// A workspace FOSS_USER is in but NORMAL_USER is NOT — used by
+// workspace-membership-isolation tests (NORMAL_USER must not see
+// FOSS_USER's other workspaces). On the sandbox FOSS_USER is Admin
+// of `aa` while NORMAL_USER has no membership there; the contract
+// is that NORMAL_USER's UI / API access to `aa` is refused.
+export const FOSS_USER_PRIVATE_WORKSPACE_SLUG =
+  env("FOSS_USER_PRIVATE_WORKSPACE_SLUG", "aa");
+
 // Regex matching any IDP host (escaped). Used by login flow to detect the IDP step.
 export const IDP_REGEX = new RegExp(
   IDP_HOSTS.map(escapeHostForRegex).join("|")
