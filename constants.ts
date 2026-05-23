@@ -119,24 +119,38 @@ export const COGNITO_EMAIL_DOMAIN = env("FOSS_COGNITO_EMAIL_DOMAIN", "askii.ai")
 // switching deployments is a single env-file change rather than a
 // per-spec hunt.
 //
-// Defaults reflect the **SMB shared workspace** keyed by
-// `SMB_DEFAULT_WORKSPACE_NAME=fossarbisoft` on the sandbox. The bundle's
-// `scripts/provision-admin/*` per-app scripts promote a chosen SSO
-// email to admin/owner WITHIN this workspace; the values below are the
-// stable identifiers of the SMB scope on the sandbox deployment.
+// Defaults reflect the **live sandbox state** as observed via direct
+// API probes against `https://foss.arbisoft.com`. FOSS_USER's role
+// per app on this deployment:
 //
-// Override via env when pointing at a deployment that uses different
-// IDs (different bundle install, fresh provisioning, etc.).
+//   • Plane    — Member of `fossarbisoft` (role=15), Admin of `aa` (20)
+//   • Outline  — workspace admin (`users.role = 'admin'`),
+//                team UUID 1a2e0bad-3c60-40a5-92b5-98b6b71c3316
+//   • Penpot   — Owner of personal "Default" team (UUID c16a7502-…);
+//                only Editor in the SMB `fossarbisoft` team (fd5a0f56-…)
+//   • SurfSense — search space id 1 (the auto-provisioned space)
+//
+// foss-server-bundle PR #63 added SMB-workspace admin promotion
+// (scripts/provision-admin/*), but on this sandbox those scripts have
+// not been run with FOSS_USER's email — so FOSS_USER's role hasn't
+// been promoted in the SMB scope. Constants here track what FOSS_USER
+// actually owns/can-admin today.
+//
+// When SMB provisioning is run with FOSS_USER's email, update the
+// defaults below (or set env overrides) to point at the SMB team IDs
+// instead. Adjacent test specs (outline-admin, penpot-admin, etc.)
+// will pass against either configuration so long as the IDs match
+// the live role state.
 export const PENPOT_TEAM_ID =
-  env("PENPOT_TEAM_ID", "fd5a0f56-9469-475b-ad88-c7274dcee9fc");
+  env("PENPOT_TEAM_ID", "c16a7502-dcf5-8188-8007-f336e4292883");
 export const PLANE_WORKSPACE_SLUG =
   env("PLANE_ADMIN_WORKSPACE_SLUG", "fossarbisoft");
 export const PLANE_WORKSPACE_ID =
   env("PLANE_WORKSPACE_ID", "aab50fd3-d056-486e-9656-8ffb2f3e5996");
 export const OUTLINE_TEAM_ID =
-  env("OUTLINE_TEAM_ID", "3aaf4a26-9162-4d7c-bdc0-7d021db566ff");
+  env("OUTLINE_TEAM_ID", "1a2e0bad-3c60-40a5-92b5-98b6b71c3316");
 export const SURFSENSE_SEARCH_SPACE_ID =
-  env("SURFSENSE_SEARCH_SPACE_ID", "17");
+  env("SURFSENSE_SEARCH_SPACE_ID", "1");
 
 // Regex matching any IDP host (escaped). Used by login flow to detect the IDP step.
 export const IDP_REGEX = new RegExp(
