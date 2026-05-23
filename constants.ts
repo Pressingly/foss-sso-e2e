@@ -118,12 +118,25 @@ export const COGNITO_EMAIL_DOMAIN = env("FOSS_COGNITO_EMAIL_DOMAIN", "askii.ai")
 // Per-deployment workspace / team / search-space IDs. Hoisted here so
 // switching deployments is a single env-file change rather than a
 // per-spec hunt.
+//
+// Defaults reflect the **SMB shared workspace** keyed by
+// `SMB_DEFAULT_WORKSPACE_NAME=fossarbisoft` on the sandbox. The bundle's
+// `scripts/provision-admin/*` per-app scripts promote a chosen SSO
+// email to admin/owner WITHIN this workspace; the values below are the
+// stable identifiers of the SMB scope on the sandbox deployment.
+//
+// Override via env when pointing at a deployment that uses different
+// IDs (different bundle install, fresh provisioning, etc.).
 export const PENPOT_TEAM_ID =
-  env("PENPOT_TEAM_ID", "c16a7502-dcf5-8188-8007-f336e4292883");
+  env("PENPOT_TEAM_ID", "fd5a0f56-9469-475b-ad88-c7274dcee9fc");
 export const PLANE_WORKSPACE_SLUG =
   env("PLANE_ADMIN_WORKSPACE_SLUG", "fossarbisoft");
+export const PLANE_WORKSPACE_ID =
+  env("PLANE_WORKSPACE_ID", "aab50fd3-d056-486e-9656-8ffb2f3e5996");
+export const OUTLINE_TEAM_ID =
+  env("OUTLINE_TEAM_ID", "3aaf4a26-9162-4d7c-bdc0-7d021db566ff");
 export const SURFSENSE_SEARCH_SPACE_ID =
-  env("SURFSENSE_SEARCH_SPACE_ID", "1");
+  env("SURFSENSE_SEARCH_SPACE_ID", "17");
 
 // Regex matching any IDP host (escaped). Used by login flow to detect the IDP step.
 export const IDP_REGEX = new RegExp(
