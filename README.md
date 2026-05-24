@@ -41,7 +41,9 @@ pattern → cause → action" runbook.
 
 ## Apps Under Test
 
-All hosts derive from `FOSS_BASE_URL` using the FOSS naming convention:
+All hosts derive from `FOSS_BASE_URL`.
+
+Default topology is `nested` (`FOSS_HOST_TOPOLOGY` unset):
 
 | Component | Host pattern | Sandbox value |
 |-----------|-------------|---------------|
@@ -53,9 +55,10 @@ All hosts derive from `FOSS_BASE_URL` using the FOSS naming convention:
 | Twenty (CRM)          | `twenty.foss.<domain>`       | `twenty.foss.arbisoft.com` |
 | ForwardAuth proxy     | `auth.foss.<domain>`         | `auth.foss.arbisoft.com` |
 
-App hosts are nested under the main-portal hostname, and the SSO cookie
-scope is `foss.<domain>` (the MAIN_URL hostname). Pointing the suite at
-a different deployment is a one-line change to `FOSS_BASE_URL`.
+In `peer` topology (`FOSS_HOST_TOPOLOGY=peer`), app/auth hosts derive as
+`<app>.<smb-domain>` (for example `docs.platform.askii.ai`) while
+`FOSS_BASE_URL` stays `https://foss.<smb-domain>`. Cookie scope is the
+SMB domain (`<smb-domain>`), so one cookie still covers all app hosts.
 
 ## Quick start
 
@@ -88,12 +91,14 @@ Optional:
   identity in a given deployment.
 
 Outline / Penpot / SurfSense / Twenty admin tests use the worker
-fixture's identity (FOSS_USER). Per sso-rules/admin.md that account
-is pre-promoted to admin on every app, so no per-app admin env vars
-are needed.
+fixture's identity (`FOSS_USER`) by default. Plane is intentionally
+different: shared-workspace role checks in `tests/apps/pm-admin.spec.ts`
+pin Member-only behavior unless that identity is explicitly promoted in
+the target deployment.
 - `BROWSERS=all` — chromium + firefox + webkit (default: chromium only)
 - `FOSS_COGNITO_DOMAIN` / `FOSS_MPASS_DOMAIN` — IDP overrides (don't derive
   from base URL)
+- `FOSS_HOST_TOPOLOGY` — host derivation mode: `nested` (default) or `peer`
 
 See `.env.example` for everything.
 
