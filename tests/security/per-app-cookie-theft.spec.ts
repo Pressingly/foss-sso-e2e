@@ -21,7 +21,7 @@
 
 import { test, expect } from "../../fixtures";
 import { request, type BrowserContext } from "@playwright/test";
-import { APP_URLS, COOKIE_DOMAIN } from "../../constants";
+import { APP_URLS, AUTH_COOKIE, COOKIE_DOMAIN } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
 
 // Per-app session-cookie name patterns for theft checks in this spec.
@@ -34,8 +34,8 @@ const APP_SESSION_COOKIE_PATTERNS: RegExp[] = [
 ];
 
 const NON_APP_COOKIE_NAMES = new Set([
-  "_oauth2_proxy", // the SSO layer — covered by cookie-attributes.spec.ts
-  "_oauth2_proxy_csrf",
+  AUTH_COOKIE, // the SSO layer — covered by cookie-attributes.spec.ts
+  `${AUTH_COOKIE}_csrf`,
 ]);
 
 function isAppSessionCookie(name: string): boolean {

@@ -20,6 +20,9 @@ enforced, …) not a single product. Apps are upstream; we don't own their UI.
 4. [`docs/spec-coverage-deferred.md`](./docs/spec-coverage-deferred.md) — gap pile + categories
 5. [`TESTS.md`](./TESTS.md) — per-test catalog
 
+When CI is red, [`TRIAGE.md`](./TRIAGE.md) is the 2-minute "what is
+this and what do I do" runbook — failure pattern → cause → action.
+
 The canonical SSO rule source is the openspec at
 [awais786/sso-rules-moneta](https://github.com/awais786/sso-rules-moneta/tree/main/openspec/specs)
 (private repo — fetching needs `SPEC_REPO_TOKEN`).
