@@ -77,8 +77,16 @@ export const APP_HEALTH_PROBES: Record<AppName, AppHealthProbe> = {
     // Twenty has no stable cookie-authed /me endpoint; its SPA uses
     // JWT-bearer GraphQL for currentUser. /auth/sso/proxy-login is the
     // SSO chain's terminal step — 500 when the workspace's IdP row is
-    // missing, 2xx/3xx when wired up. Probing it directly skips the
-    // SPA timing dance.
+    // missing, 2xx/3xx (typically 302 with Set-Cookie + redirect to
+    // /objects/companies) when wired up. Probing it directly skips
+    // the SPA timing dance.
+    //
+    // ASSUMPTION: the working contract is "status < 400". When the
+    // bundle's Twenty bootstrap is fixed, verify this assumption on a
+    // healthy deployment — if proxy-login returns something unexpected
+    // (e.g., 400 with a benign body), the probe will false-positive
+    // "broken" and every cascade SurfSense test will skip pointing at
+    // Twenty.
     request: (ctx) => apiCall(ctx, `${APP_URLS.Twenty}/auth/sso/proxy-login`),
   },
 };
@@ -127,6 +135,13 @@ export async function probeApp(ctx: BrowserContext, app: AppName): Promise<AppHe
 
 // Probe every app in parallel. Used by the `appHealth` worker fixture
 // so all cascade tests can see the same snapshot.
+//
+// Parallel by design — 5 single HTTPS requests aren't a burst (Outline's
+// rate-limiter doesn't trip on one request the way it does on 30+
+// chunked link-coverage fetches). If Outline ever turns out to be
+// sensitive to even this small burst, switch to a `for await` serial
+// loop here — the cost is ~5× single-probe time, still acceptable
+// inside the worker-setup budget.
 export async function probeAllApps(ctx: BrowserContext): Promise<AppHealthMap> {
   const apps = Object.keys(APP_HEALTH_PROBES) as AppName[];
   const results = await Promise.all(apps.map((a) => probeApp(ctx, a).then((r) => [a, r] as const)));

@@ -23,6 +23,12 @@
 // Self-skips if FOSS_USER or NORMAL_USER is unset — both identities
 // are required (one for the cookie source, one for the victim
 // session being attacked).
+//
+// Also self-skips via the `appHealth` worker fixture when any of the
+// 4 cookie-authed apps is broken at the SSO chain level — the test's
+// assertion ("every app reports FOSS_USER after the cookie swap")
+// can't be true if an app's chain is broken to start with. Per-app
+// login smoke catches that case; this test just steps aside.
 
 import { test, expect } from "../../fixtures";
 import { request, BrowserContext } from "@playwright/test";

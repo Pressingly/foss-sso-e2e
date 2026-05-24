@@ -43,6 +43,14 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   // session cookies land in the jar) BEFORE probing. Some apps
   // lazily issue their per-host session cookie on first SPA fetch,
   // and probing /me with only the SSO cookie would 401.
+  //
+  // The warm-up is intentionally duplicated in cascade tests too —
+  // each test's `context` is a separate BrowserContext also seeded
+  // from workerStorageState, and per-host cookies issued in THIS
+  // fixture's context don't carry over. Sharing context across the
+  // fixture + tests would break Playwright's per-test isolation, so
+  // accept the ~5s of duplicated `goto`s per worker as the price of
+  // correctness.
   appHealth: [
     async ({ browser, workerStorageState }, use) => {
       const ctx = await browser.newContext({ storageState: JSON.parse(workerStorageState) });
