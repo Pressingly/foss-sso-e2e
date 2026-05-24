@@ -52,6 +52,9 @@ const csv = (key: string, fallback: string): string[] =>
 // ---------------------------------------------------------------------------
 
 export const MAIN_URL = env("FOSS_BASE_URL", "https://foss.arbisoft.com");
+// Speculative — no current deployment uses peer mode. The branch lives
+// here so that when one does, it works out of the box. See issue #42
+// for the "validate against a real deployment or remove" tracker.
 const HOST_TOPOLOGY = env("FOSS_HOST_TOPOLOGY", "nested");
 const USE_PEER_TOPOLOGY = HOST_TOPOLOGY === "peer";
 
