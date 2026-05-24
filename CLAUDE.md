@@ -23,9 +23,10 @@ enforced, …) not a single product. Apps are upstream; we don't own their UI.
 When CI is red, [`TRIAGE.md`](./TRIAGE.md) is the 2-minute "what is
 this and what do I do" runbook — failure pattern → cause → action.
 
-The canonical SSO rule source is the openspec at
-[awais786/sso-rules-moneta](https://github.com/awais786/sso-rules-moneta/tree/main/openspec/specs)
-(private repo — fetching needs `SPEC_REPO_TOKEN`).
+The canonical SSO rule source is the openspec vendored at
+[`vendor/openspec/specs/`](./vendor/openspec/specs/) — see
+[`vendor/openspec/README.md`](./vendor/openspec/README.md) for the
+structure and how to update it.
 
 ## Conventions
 
