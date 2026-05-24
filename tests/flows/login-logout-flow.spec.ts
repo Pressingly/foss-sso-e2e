@@ -1,9 +1,11 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
 // @spec logout-flow#per-app-logout-shall-be-navigation-only
 
-import { test, expect, BrowserContext } from "@playwright/test";
+import { test, expect } from "../../fixtures";
+import { BrowserContext } from "@playwright/test";
 import { APPS, AUTH_COOKIE, IDP_HOSTS, IDP_REGEX, MAIN_URL, isAuthWall } from "../../constants";
 import { freshLogin } from "../lib/common-flows";
+import { blockedAppsMessage } from "../lib/app-health-probes";
 
 // oauth2-proxy exposes /oauth2/sign_out on every protected subdomain.
 // Hitting it with `rd=` redirects to the main portal after clearing the cookie.
@@ -21,7 +23,25 @@ async function getSsoCookie(context: BrowserContext) {
 // ---------------------------------------------------------------------------
 
 test.describe.serial("E2E Flow — Login + Visit All Apps + Per-App Logout", () => {
-  test("login once, then every app loads authenticated without re-auth", async ({ browser }) => {
+  test("login once, then every app loads authenticated without re-auth", async ({
+    browser,
+    appHealth,
+  }) => {
+    // Cross-app iteration — when one app's bundle bootstrap is broken
+    // (Twenty IdP row missing, SurfSense alembic stale, etc.) this
+    // test fails on the broken app's goto. The per-app login smoke
+    // catches that case with a named signal; this test skips with
+    // the same reason, matching the block-on-smoke pattern applied to
+    // the 4 cross-app probes in #28.
+    const blocked = blockedAppsMessage(
+      appHealth,
+      "PM",
+      "Outline",
+      "Penpot",
+      "SurfSense",
+      "Twenty",
+    );
+    test.skip(!!blocked, blocked ?? "");
     test.setTimeout(180_000); // many apps × goto + login can exceed 30s default
     const { context, page } = await freshLogin(browser);
 
