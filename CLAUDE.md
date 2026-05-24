@@ -36,6 +36,17 @@ structure and how to update it.
   also live in `constants.ts`: `COGNITO_EMAIL_DOMAIN`, `PENPOT_TEAM_ID`,
   `PLANE_WORKSPACE_SLUG`, `SURFSENSE_SEARCH_SPACE_ID` (each
   env-overridable).
+- **`SMB_DEFAULT_WORKSPACE_NAME` is the bundle's unified workspace
+  identifier.** Mirrors the env var introduced by foss-server-bundle
+  PR #46 — drives Plane slug, Outline subdomain, Penpot team name,
+  SurfSense search-space name, and Twenty workspace subdomain. The
+  suite reads it from `constants.ts` (defaults to `fossarbisoft` to
+  match the live sandbox). `PLANE_ADMIN_WORKSPACE_SLUG` and other
+  per-app overrides fall back to it when not explicitly set.
+  `SYSTEM_BOT_EMAIL` (default `system-bot@foss.arbisoft.com`) is the
+  bundle's canonical bot-Admin — used by tests that pin "bot is
+  Admin, FOSS_USER is Member" rather than testing FOSS_USER's
+  own-team admin scope.
 - **Use the shared helpers, don't redefine them per-spec.**
   - `cognitoLogin()` from `auth-helpers.ts` — the one login choreography.
   - `freshLogin()` + `clickPortalLogoutAll()` from `tests/lib/common-flows.ts` — for tests that need their own non-worker context.

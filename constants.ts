@@ -127,6 +127,44 @@ export function appNameForBaseUrl(baseUrl: string): AppName | undefined {
 // suffix in each file.
 export const COGNITO_EMAIL_DOMAIN = env("FOSS_COGNITO_EMAIL_DOMAIN", "askii.ai");
 
+// ---------------------------------------------------------------------------
+// Bundle convention parameters (foss-server-bundle PR #46 + #55)
+// ---------------------------------------------------------------------------
+//
+// The bundle provisions one workspace per app, all named by a single env
+// var `SMB_DEFAULT_WORKSPACE_NAME` (which itself defaults to `SMB_NAME` —
+// the tenant slug). That value drives:
+//   - Plane workspace slug
+//   - Outline team subdomain
+//   - Penpot team name
+//   - SurfSense search-space name
+//   - Twenty workspace subdomain
+//
+// Per-app role contract:
+//   - `SYSTEM_BOT_EMAIL` (default `system-bot@<PLATFORM_DOMAIN>`) is the
+//     bootstrap Admin of the shared workspace in each app.
+//   - Other Cognito users join as the app's regular-member role.
+//   - To promote an additional user, the bundle's bootstrap commands
+//     (`workspace:bootstrap-sso-admin --email <email>`, etc.) must be
+//     run with that user's email — this is NOT automatic.
+//
+// On the live sandbox these defaults track the actually-configured state
+// (workspace name = `fossarbisoft`; bot = `system-bot@foss.arbisoft.com`).
+// When switching to a different deployment, override either via .env or
+// the upstream bundle's own env vars.
+export const SMB_DEFAULT_WORKSPACE_NAME = env(
+  "SMB_DEFAULT_WORKSPACE_NAME",
+  "fossarbisoft",
+);
+
+// Optional. Set if a test needs to assert "the bot is the canonical
+// Admin" or to drive an admin-only flow without bootstrapping FOSS_USER.
+// Most existing admin tests don't need it — they test against each
+// user's own-team admin scope, where FOSS_USER IS the Admin/Owner. Use
+// this only for tests that pin the bundle's bot-Admin contract directly.
+export const SYSTEM_BOT_EMAIL =
+  env("SYSTEM_BOT_EMAIL", "system-bot@foss.arbisoft.com");
+
 // Per-deployment workspace / team / search-space IDs. Hoisted here so
 // switching deployments is a single env-file change rather than a
 // per-spec hunt.
@@ -155,8 +193,12 @@ export const COGNITO_EMAIL_DOMAIN = env("FOSS_COGNITO_EMAIL_DOMAIN", "askii.ai")
 // the live role state.
 export const PENPOT_TEAM_ID =
   env("PENPOT_TEAM_ID", "c16a7502-dcf5-8188-8007-f336e4292883");
+// Plane's shared workspace slug. Defaults to SMB_DEFAULT_WORKSPACE_NAME
+// (the bundle convention from foss-server-bundle PR #46) — set
+// PLANE_ADMIN_WORKSPACE_SLUG to override when the deployment uses a
+// different value for Plane specifically.
 export const PLANE_WORKSPACE_SLUG =
-  env("PLANE_ADMIN_WORKSPACE_SLUG", "fossarbisoft");
+  env("PLANE_ADMIN_WORKSPACE_SLUG", SMB_DEFAULT_WORKSPACE_NAME);
 export const PLANE_WORKSPACE_ID =
   env("PLANE_WORKSPACE_ID", "aab50fd3-d056-486e-9656-8ffb2f3e5996");
 export const OUTLINE_TEAM_ID =
