@@ -1,13 +1,16 @@
 name: Spec coverage audit
 
-# Verifies every requirement in the upstream sso-rules-moneta openspec
-# contract is either covered by a `// @spec module#slug` tag in a test
-# file OR explicitly listed in docs/spec-coverage-deferred.md.
+# Verifies every requirement in the SSO openspec contract is either
+# covered by a `// @spec module#slug` tag in a test file OR explicitly
+# listed in docs/spec-coverage-deferred.md.
 #
-# Failure mode this catches: a new requirement lands upstream (in
-# awais786/sso-rules-moneta) but no one updates this suite. The PR-time
-# job fails so the gap is visible before merge; the scheduled job catches
-# upstream drift between PRs.
+# The contract is read from `vendor/openspec/specs/` — a checked-in
+# snapshot in this repo. CI needs no network access; vendor updates
+# land as normal PR diffs.
+#
+# Failure mode this catches: a vendor update brings a new requirement
+# without a corresponding test tag or deferred-list entry — audit
+# fails until the gap is closed.
 
 on:
   pull_request:
@@ -15,13 +18,10 @@ on:
       - 'tests/**'
       - 'docs/spec-coverage*.md'
       - 'scripts/check-spec-coverage.sh'
+      - 'vendor/openspec/**'
       - '.github/workflows/spec-coverage.yml'
   push:
     branches: [main]
-  schedule:
-    # Daily 09:00 UTC — picks up upstream spec additions even when no PR
-    # is open on this repo.
-    - cron: '0 9 * * *'
   workflow_dispatch:
 
 permissions:
@@ -41,7 +41,9 @@ jobs:
         id: audit
         run: |
           set -o pipefail
-          # No SPEC_DIR — script fetches from GitHub raw.
+          # Script defaults to the vendored copy at `vendor/openspec/specs/`.
+          # No SPEC_DIR override needed at CI time. Vendor lives in-tree;
+          # updates land as normal PR diffs.
           if bash scripts/check-spec-coverage.sh | tee coverage-output.md; then
             echo "audit_exit=0" >> "$GITHUB_OUTPUT"
           else
