@@ -117,13 +117,23 @@ structure and how to update it.
 
 ## What to work on (live)
 
-Live coverage is **25 ✅ Covered / 26 ⚠️ Deferred / 0 ❌ Missing / 51
-total** (re-run `make audit` to refresh). The deferred file's
-**"Genuine test gap"** category is the next-coverage-PR pile.
-Highest-value remaining items: the remaining workspace-auto-join
-requirements (oldest-workspace target, runs-every-login,
-onboarding-complete) and the cognito-claim-mapping cookie ↔ bearer
-parity.
+Live coverage is **59 ✅ Covered / 25 ⚠️ Deferred / 0 ❌ Missing / 84
+total** (re-run `make audit` to refresh). The suite is spec-driven
+bidirectionally — every requirement is covered or deferred, every
+contract-bearing test points at a requirement, both directions
+gated by CI.
+
+The remaining gaps to close are tracked in **[issue #37](https://github.com/Pressingly/foss-sso-e2e/issues/37)** — "Close all remaining spec-driven gaps". Highlights:
+
+  - Codify the link-coverage contract as its own skill (so the 5
+    per-app shell files exit `UNTAGGED_ALLOWLIST`)
+  - Verify the 9 unspot-checked security-hardening requirements
+    against their tests
+  - Single-source `UNTAGGED_ALLOWLIST` (currently duplicated in
+    meta spec + deferred doc)
+  - Triage the 13 "Genuine test gap" deferred entries — some are
+    writable today; some need bundle-side changes (short-TTL test
+    deployments, etc.)
 
 Don't touch the **"Infra-only"**, **"Cognito-side"**, **"Policy/doc"**, or
 **"Needs infra access"** deferred entries — those are by-design out of
