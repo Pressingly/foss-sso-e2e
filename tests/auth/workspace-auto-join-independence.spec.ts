@@ -5,6 +5,7 @@ import { test, expect } from "../../fixtures";
 import { request, BrowserContext } from "@playwright/test";
 import { APP_URLS } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
+import { blockedAppsMessage } from "../lib/app-health-probes";
 
 // Per-app auto-join independence: when the same SSO user is auto-joined
 // in app A and app B, each app's middleware acts independently. There
@@ -138,7 +139,10 @@ test.describe("workspace-auto-join — per-app independence", () => {
   test("each app surfaces its own workspace identifier; none are shared across apps", async ({
     context,
     page,
+    appHealth,
   }) => {
+    const blocked = blockedAppsMessage(appHealth, "PM", "Outline", "Penpot", "SurfSense");
+    test.skip(!!blocked, blocked ?? "");
     test.setTimeout(120_000);
 
     // Warm each app once so per-host cookies are in the jar — Penpot and

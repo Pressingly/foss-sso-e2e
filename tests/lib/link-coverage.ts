@@ -1,7 +1,8 @@
 import { Page, Response } from "@playwright/test";
 import { setTimeout as delay } from "node:timers/promises";
 import { test, expect } from "../../fixtures";
-import { isAuthWall } from "../../constants";
+import { appNameForBaseUrl, isAuthWall } from "../../constants";
+import { blockedAppsMessage } from "./app-health-probes";
 
 // L1 — first path segment after redirect must NOT be one of these.
 const RESERVED_PATH_SEGMENTS = new Set([
@@ -233,9 +234,19 @@ export function registerLinkCoverage({
   // Iterating across many links pushes well past Playwright's 30s default.
   const SUITE_TIMEOUT = 180_000;
 
+  // If this baseUrl maps to a known AppName, link-coverage tests skip
+  // themselves when that app's SSO smoke is broken — keeps a bundle
+  // issue from flooding CI with 3 red link-coverage entries per
+  // affected app. The per-app login smoke is the named loud signal.
+  const app = appNameForBaseUrl(baseUrl);
+  const blockIfBroken = (appHealth: import("./app-health-probes").AppHealthMap): string | null =>
+    app ? blockedAppsMessage(appHealth, app) : null;
+
   test.describe(`${appName} — Link Coverage`, () => {
     // L1 + L2
-    test("start page exposes at least one internal link", async ({ page }) => {
+    test("start page exposes at least one internal link", async ({ page, appHealth }) => {
+      const blocked = blockIfBroken(appHealth);
+      test.skip(!!blocked, blocked ?? "");
       test.setTimeout(SUITE_TIMEOUT);
       const start = await resolveStartUrl(page, startUrl, waitUntil);
       await dismissTour(page);
@@ -257,7 +268,9 @@ export function registerLinkCoverage({
     });
 
     // L3 + L4 + L5 + L6
-    test("every internal link loads without auth wall or error", async ({ page }) => {
+    test("every internal link loads without auth wall or error", async ({ page, appHealth }) => {
+      const blocked = blockIfBroken(appHealth);
+      test.skip(!!blocked, blocked ?? "");
       test.setTimeout(SUITE_TIMEOUT);
 
       // Keep a small gap between L1 and this test to reduce bursty re-requests.
@@ -288,7 +301,9 @@ export function registerLinkCoverage({
 
     // L7
     if (includeClickTest) {
-      test("clicking each visible link navigates within host", async ({ page }) => {
+      test("clicking each visible link navigates within host", async ({ page, appHealth }) => {
+        const blocked = blockIfBroken(appHealth);
+        test.skip(!!blocked, blocked ?? "");
         test.setTimeout(SUITE_TIMEOUT);
         const start = await resolveStartUrl(page, startUrl, waitUntil);
         await dismissTour(page);

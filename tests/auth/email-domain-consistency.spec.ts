@@ -5,6 +5,7 @@ import { test, expect } from "../../fixtures";
 import { request, BrowserContext } from "@playwright/test";
 import { APP_URLS } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
+import { blockedAppsMessage } from "../lib/app-health-probes";
 
 // Cross-app email-domain consistency.
 //
@@ -125,7 +126,10 @@ test.describe("cognito-claim-mapping — DEFAULT_EMAIL_DOMAIN consistent across 
   test("every cookie-authed app synthesises the same email domain", async ({
     context,
     page,
+    appHealth,
   }) => {
+    const blocked = blockedAppsMessage(appHealth, "PM", "Outline", "Penpot", "SurfSense");
+    test.skip(!!blocked, blocked ?? "");
     test.setTimeout(120_000);
 
     // Warm each app once so per-host cookies land before probes.
