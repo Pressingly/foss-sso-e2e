@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — orthogonal OWASP A01-aligned coverage:
-// CSRF-on-login via OIDC state-parameter tampering)
+// @spec security-hardening#oidc-state-parameter-shall-be-integrity-protected
 
 import { test, expect, request } from "@playwright/test";
 import { APPS, MAIN_URL, isAuthWall } from "../../constants";

@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — generic OWASP A01 / CSRF defence on logout)
-// Tracked as orthogonal coverage in spec-coverage-deferred.md.
+// @spec security-hardening#logout-endpoint-shall-require-csrf-protection
 
 import { test as raw, expect } from "@playwright/test";
 import { APPS, MAIN_URL, AUTH_COOKIE } from "../../constants";

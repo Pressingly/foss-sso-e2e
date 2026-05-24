@@ -90,6 +90,146 @@ The check is currently portal-scoped (the bundle owns the portal
 nginx config) but extends naturally to per-app routers when the
 bundle takes ownership.
 
+### Requirement: platform hosts SHALL enforce HTTPS, refusing plaintext
+
+Plaintext (`http://`) requests to any platform host MUST NOT be
+served — they MUST either be redirected to `https://` or refused
+outright (connection close / 4xx). No authenticated endpoint may
+respond over plaintext; an attacker on the network MUST NOT be able
+to capture the SSO cookie by downgrading the connection.
+
+### Requirement: OIDC state parameter SHALL be integrity-protected
+
+The OIDC `state` parameter in the `/oauth2/start` → `/oauth2/callback`
+flow MUST be cryptographically protected against tampering. A
+modified `state` returned to the callback MUST be rejected; the
+callback MUST NOT issue a session cookie when the state value
+does not match what was issued at flow start.
+
+This pins the CSRF protection on the OIDC handshake — without it,
+an attacker could trick a user into completing a login flow against
+the attacker's IdP session.
+
+### Requirement: JWT algorithm confusion SHALL be mitigated
+
+The SSO chain MUST NOT accept JWTs signed with algorithms outside
+the configured allow-list (typically `RS256` only). Specifically:
+
+- Tokens with `alg: none` MUST be rejected.
+- Tokens with `alg: HS256` (or any symmetric alg) using the RSA
+  public key as the HMAC secret MUST be rejected.
+- Tokens with unexpected algorithms MUST be rejected even if the
+  payload would otherwise be valid.
+
+This pins the standard "alg confusion" attack defense — the chain
+verifies BOTH the signature AND that the algorithm matches what's
+configured.
+
+### Requirement: SSO chain SHALL NOT expose tokens in URL query params
+
+Bearer tokens, session IDs, and authorisation codes MUST NOT appear
+in URL query parameters at any point in the chain (request URL,
+redirect URL, browser address bar). Tokens belong in headers and
+cookies only.
+
+URL-exposed tokens land in browser history, server access logs,
+and `Referer` headers sent to third parties — every one of those
+is a credential leak surface.
+
+### Requirement: HTTP method tampering SHALL NOT bypass auth
+
+The auth chain MUST be enforced uniformly across HTTP methods. A
+request using an unexpected method (e.g., `OPTIONS`, `TRACE`,
+`HEAD`, `CONNECT`, or made-up methods like `FOO`) to a protected
+endpoint MUST be subject to the same auth check as the canonical
+method. A 405 / 400 response without auth is acceptable; serving
+the endpoint payload without auth is NOT.
+
+### Requirement: redirects SHALL NOT permit open-redirect to off-platform hosts
+
+Any endpoint that takes a redirect target (e.g., `?rd=`, `?next=`,
+post-logout redirect) MUST validate the target against an allow-list
+of platform hosts. Off-platform redirects MUST be refused or
+silently coerced to the platform root.
+
+Specifically:
+- Naive URL substring matches (`startsWith(MAIN_URL)`) MUST NOT be
+  used — the attacker can craft `https://foss.arbisoft.com.evil.com`
+  to bypass them.
+- CRLF-injection attempts (`\r\n` in the target value) MUST NOT
+  result in additional headers being emitted.
+
+### Requirement: per-app session cookies SHALL NOT be standalone bearer credentials
+
+A per-app session cookie (Outline `accessToken`, Plane `sessionid`,
+Penpot opaque, etc.) MUST NOT authenticate a request on its own.
+The ForwardAuth chain in front of every app MUST refuse requests
+without a valid `_oauth2_proxy` cookie regardless of the per-app
+cookies present.
+
+This pins the "two-cookie" defense-in-depth: an attacker who steals
+a per-app cookie (XSS on the app, log exposure) does NOT gain
+session access without ALSO obtaining the SSO cookie.
+
+### Requirement: per-app session cookies SHALL be hardened at issue time
+
+Per-app session cookies MUST be issued with:
+
+- `HttpOnly: true` (no JS access)
+- `Secure: true` (HTTPS-only transmission)
+- `Domain` MUST be the app's specific host (NOT a wildcard of the
+  cookie domain) — so an XSS on app A doesn't leak app B's cookie
+
+### Requirement: SSO chain SHALL be immune to session fixation
+
+A pre-authentication session cookie value MUST NOT survive the
+login flow. After successful SSO sign-in, the issued
+`_oauth2_proxy` cookie MUST have a different value than any cookie
+the browser carried into the flow.
+
+This pins the standard session-fixation defense — an attacker who
+plants a known cookie value on a victim's browser BEFORE the victim
+logs in MUST NOT then be able to use that cookie to hijack the
+victim's authenticated session.
+
+### Requirement: SSO-mode apps SHALL NOT expose local login forms
+
+When an app is configured in SSO-only mode (e.g., Twenty's
+`AUTH_TYPE=SSO`), the app's UI MUST NOT surface local-credential
+forms (email/password inputs) — a user MUST NOT have a path to
+log in via local credentials and bypass the SSO chain.
+
+UI-only hiding is acceptable so long as the local-login API
+endpoints are ALSO refused (consistent with the SSO-only
+configuration); both surfaces together enforce the contract.
+
+### Requirement: logout endpoint SHALL require CSRF protection
+
+The `/oauth2/sign_out` endpoint (and any per-app logout endpoint
+that materially clears state) MUST be protected against CSRF.
+Either:
+
+- The endpoint requires `POST` with a CSRF token, OR
+- The endpoint is `GET` but performs no state-changing action
+  beyond a redirect (the actual cookie clear happens on the next
+  authenticated request)
+
+A drive-by GET to `/oauth2/sign_out` that logs the user out without
+any user intent is the failure mode this prevents.
+
+### Requirement: post-login redirect SHALL preserve the original intent
+
+When a user lands on a protected URL while unauthenticated, the
+SSO chain MUST preserve the original intent — after completing
+login, the user MUST be redirected to the original URL (or as
+close as the chain can manage given hash routing, SPA quirks,
+etc.) rather than dropped on a default landing page.
+
+Per-app SPA quirks are expected (Penpot's hash routes, SurfSense's
+forced `/login` bounce); the requirement is "best effort
+preservation" with documented per-app exceptions, not strict
+equality.
+
 ## References
 
 - `oauth2-proxy.cfg` (in foss-server-bundle) — cookie attribute config

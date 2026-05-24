@@ -67,18 +67,22 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 
 ---
 
-## Coverage outside the openspec contract scope
+## Coverage outside the spec-driven loop
 
-These specs live in the suite but pin per-app *authorization gating* or *app-functionality* — a product-feature concern, not part of the SSO contract published in `awais786/sso-rules-moneta/openspec/specs/`. They're listed here so the traceability story is complete:
+After issues #32 and #34, every contract-bearing test in the suite carries an `@spec` tag pointing at a vendored requirement. The bidirectional gate in `tests/meta/playwright-practices.spec.ts` enforces this.
 
-| Spec file | What it verifies | Why no `@spec` tag |
-|---|---|---|
-| ~~`tests/apps/{outline,twenty,penpot,plane,surfsense}-admin.spec.ts`~~ | _All 5 per-app admin contracts are now spec-driven via `vendor/openspec/skills/<app>-admin/SKILL.md` (issue #32). Each carries 2–3 `### Requirement:` sections tagged from the test. No longer orphan-listed._ |  |
-| `tests/apps/pm-project-create.spec.ts` | A logged-in user creates a new project from the workspace projects page; the full create round-trips (Plane API + SeaweedFS storage) without `"cannot upload"` / media-type regressions | Plane project creation exercises Plane's API + storage layer (AWS / SeaweedFS access-key alignment + browser-reachable presigned-URL hostname). Both are config / deployment concerns, not the SSO contract. Promoted from staging (formerly `tests/bugs/bug_4961d647.spec.ts`); may go red intermittently while the storage-credential fix rolls through deployments. |
-| ~~`tests/apps/pm-workspace-isolation.spec.ts`~~ | _Tagged against `plane-admin` skill — 2 requirements (UI + API gate on workspace membership)._ |  |
-| ~~`tests/security/{cookie-attributes,headers}.spec.ts`~~ | _Tagged against new `security-hardening` skill — 4 requirements (cookie attrs, canonical headers, portal CSP/COOP/CORP, no version leak)._ |  |
+What's left here is the **soft allowlist** — files that don't pin a contract and have a documented reason. Maintained in `tests/meta/playwright-practices.spec.ts` as `UNTAGGED_ALLOWLIST`; reproduced here for visibility:
 
-These tests collectively give partial coverage to `workspace-auto-join#auto-join role SHALL be the app's regular-member role, not Admin or Guest` — they prove the auto-joined NORMAL_USER does NOT end up with admin access. If you'd like to formalise that mapping later, replace this section with a 🟡 Partial entry in the main matrix and add `@spec` tags to the admin specs.
+| Spec file | Why exempt |
+|---|---|
+| `tests/apps/pm-project-create.spec.ts` | Plane project creation exercises Plane's API + storage layer (AWS / SeaweedFS access-key alignment + browser-reachable presigned-URL hostname). Storage / deployment concern, not the SSO contract. |
+| `tests/apps/{outline,penpot,pm,surfsense,twenty}.spec.ts` | Per-app shell files just call `registerLinkCoverage()` — the parameterised assertions live in `tests/lib/link-coverage.ts`. Will fold into per-app skills (or a new `link-coverage` skill) when that work lands. |
+
+By-directory exemptions (also in the meta spec):
+
+- `tests/bugs/**` — bug tests pin a scenario via plan.md, not a contract requirement
+- `tests/zap/**` — DAST scan drivers, not assertions
+- `tests/meta/**` — the gates themselves
 
 ---
 

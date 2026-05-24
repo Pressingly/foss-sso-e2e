@@ -1,5 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — orthogonal OWASP-aligned coverage)
+// @spec security-hardening#http-method-tampering-shall-not-bypass-auth
 
 import { test, expect, request } from "@playwright/test";
 import { APPS, isAuthWall } from "../../constants";

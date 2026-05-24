@@ -155,27 +155,75 @@ test.describe("Playwright suite hygiene", () => {
 
   // Structural conventions — file-level checks that don't fit a line-pattern.
   //
-  // skills.md §1 organises tests/auth/ as the SSO-chain-contract group:
-  // every spec in there should pin at least one openspec requirement via
-  // a `// @spec module#slug` tag. Tests in tests/security/, tests/apps/,
-  // tests/flows/ are orthogonal-coverage by design and don't require tags.
-  test("every tests/auth spec carries at least one @spec tag", async () => {
-    const authDir = path.join(TESTS_DIR, "auth");
-    const files = await listSpecFiles(authDir);
+  // Bidirectional spec gate: every contract-bearing spec under tests/
+  // MUST pin at least one written requirement via `// @spec module#slug`.
+  // The audit script (scripts/check-spec-coverage.sh) walks
+  // requirements → tests; this check walks tests → requirements.
+  // Together they enforce both directions of the spec-driven contract.
+  //
+  // EXEMPTED — files that genuinely don't pin a contract:
+  //   - tests/bugs/**       — bug tests pin a scenario via plan.md, not
+  //                            a contract requirement
+  //   - tests/zap/**        — DAST scan drivers, not assertions
+  //   - tests/meta/**       — the gates themselves
+  //   - Files explicitly allowlisted below with a `Why exempt` rationale.
+  //
+  // To exempt a new file: add it to UNTAGGED_ALLOWLIST with a one-line
+  // reason. The list is intentionally small — orthogonal coverage that
+  // doesn't pin a written contract is RARE.
+  const UNTAGGED_ALLOWLIST: Record<string, string> = {
+    // Per-app shell files just call `registerLinkCoverage()` — the
+    // assertions live in tests/lib/link-coverage.ts and the per-app
+    // tags belong on the parameterised tests (or on a future
+    // link-coverage skill). Listed here so the gate doesn't fire
+    // until that work lands.
+    "tests/apps/outline.spec.ts":   "shell registration for registerLinkCoverage; assertions in tests/lib/link-coverage.ts",
+    "tests/apps/penpot.spec.ts":    "shell registration for registerLinkCoverage; assertions in tests/lib/link-coverage.ts",
+    "tests/apps/pm.spec.ts":        "shell registration for registerLinkCoverage; assertions in tests/lib/link-coverage.ts",
+    "tests/apps/surfsense.spec.ts": "shell registration for registerLinkCoverage; assertions in tests/lib/link-coverage.ts",
+    "tests/apps/twenty.spec.ts":    "shell registration for registerLinkCoverage; assertions in tests/lib/link-coverage.ts",
+    // Storage-layer / config-layer test, not the SSO contract. Tracked
+    // under "Coverage outside the openspec contract scope" in
+    // docs/spec-coverage-deferred.md.
+    "tests/apps/pm-project-create.spec.ts": "storage / SeaweedFS credential alignment — app-functionality, not SSO contract",
+  };
+
+  test("every contract-bearing spec carries at least one @spec tag", async () => {
+    const allSpecs = await listSpecFiles(TESTS_DIR);
     const missing: string[] = [];
-    for (const file of files) {
+    for (const file of allSpecs) {
+      const rel = path.relative(ROOT, file);
+      // Hard-exempt: by-directory rules above (bugs/, zap/, meta/).
+      if (
+        rel.startsWith("tests/bugs/") ||
+        rel.startsWith("tests/zap/") ||
+        rel === "tests/meta/playwright-practices.spec.ts"
+      ) {
+        continue;
+      }
+      // Soft-exempt: explicit allowlist with documented reason.
+      if (rel in UNTAGGED_ALLOWLIST) continue;
+
       const content = await readFile(file, "utf8");
       if (!/^\s*\/\/\s*@spec\s+[a-z0-9-]+#[a-z0-9-]+/m.test(content)) {
-        missing.push(path.relative(ROOT, file));
+        missing.push(rel);
       }
     }
     expect(
       missing,
-      `tests/auth/ specs are expected to pin at least one openspec requirement.\n` +
+      `Spec-driven gate (bidirectional): every contract-bearing test file MUST\n` +
+        `carry at least one \`// @spec <module>#<slug>\` tag pointing at a\n` +
+        `vendored requirement.\n\n` +
         `Files missing the tag:\n${missing.map((f) => `  - ${f}`).join("\n")}\n\n` +
-        `Tag format: \`// @spec <module>#<requirement-slug>\` above the test/describe.\n` +
-        `If the file is orthogonal coverage that doesn't pin an openspec requirement,\n` +
-        `move it under tests/security/, tests/apps/, or tests/flows/ instead.`
+        `Fix one of:\n` +
+        `  1. Add \`// @spec <module>#<slug>\` above the test/describe block,\n` +
+        `     pointing at an existing requirement under vendor/openspec/specs/\n` +
+        `     or vendor/openspec/skills/.\n` +
+        `  2. Add a new \`### Requirement: <title>\` to the matching SKILL.md\n` +
+        `     or spec.md, then tag the test against it.\n` +
+        `  3. If the file genuinely doesn't pin a contract (orthogonal\n` +
+        `     coverage, scan driver, etc.), add it to UNTAGGED_ALLOWLIST in\n` +
+        `     tests/meta/playwright-practices.spec.ts with a one-line reason.`
     ).toEqual([]);
   });
 

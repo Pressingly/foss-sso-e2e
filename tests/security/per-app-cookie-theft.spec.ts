@@ -1,7 +1,6 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no @spec tag — pins two defense-in-depth controls that aren't
-//  explicit openspec requirements: ForwardAuth gates all app traffic
-//  by the SSO cookie, AND per-app session cookies are hardened.)
+// @spec security-hardening#per-app-session-cookies-shall-not-be-standalone-bearer-credentials
+// @spec security-hardening#per-app-session-cookies-shall-be-hardened-at-issue-time
 //
 // Two complementary describe blocks:
 //

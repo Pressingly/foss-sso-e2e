@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — generic OWASP session-fixation defence)
-// Tracked as orthogonal coverage in spec-coverage-deferred.md.
+// @spec security-hardening#sso-chain-shall-be-immune-to-session-fixation
 
 import { test as raw, expect } from "@playwright/test";
 import { APPS, AUTH_COOKIE, COOKIE_DOMAIN, isAuthWall, IDP_REGEX } from "../../constants";

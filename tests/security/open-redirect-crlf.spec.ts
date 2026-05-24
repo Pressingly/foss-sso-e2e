@@ -1,5 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — orthogonal OWASP A03 (injection)-aligned coverage)
+// @spec security-hardening#redirects-shall-not-permit-open-redirect-to-off-platform-hosts
 
 import { test, expect, request } from "@playwright/test";
 import { APPS } from "../../constants";

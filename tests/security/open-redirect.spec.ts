@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — generic OWASP A01 / open-redirect protection)
-// Tracked as orthogonal coverage in spec-coverage-deferred.md.
+// @spec security-hardening#redirects-shall-not-permit-open-redirect-to-off-platform-hosts
 
 import { test as raw, expect } from "@playwright/test";
 import { MAIN_URL, APPS, FOSS_HOST_REGEX } from "../../constants";
