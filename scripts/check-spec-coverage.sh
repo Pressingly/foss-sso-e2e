@@ -49,6 +49,7 @@ SKILL_MODULES=(
   penpot-admin
   plane-admin
   surfsense-admin
+  security-hardening
 )
 
 SPEC_MODULES=(

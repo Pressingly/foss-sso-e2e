@@ -131,6 +131,34 @@ Member (not Admin), so both see the page but neither can invite
 others. The Admin role is held only by the bootstrap `system-bot`
 (or whoever was promoted via `provision-admin/plane.py`).
 
+### Requirement: workspace membership SHALL gate UI access cross-workspace
+
+An SSO-authenticated user with NO `WorkspaceMember` row for a given
+workspace MUST be refused at the UI layer when navigating to that
+workspace's routes. Specifically, hitting `/<other-slug>/` MUST
+render Plane's "Workspace not found" shell — NOT a bounce to the
+IDP (the user IS authenticated, just not authorised for that
+workspace), and NOT a successful page load.
+
+This pins defense-in-depth: a valid SSO session is necessary but
+NOT sufficient for cross-workspace data access. NORMAL_USER's
+membership of the shared SMB workspace MUST NOT leak access to
+FOSS_USER's private workspace (`FOSS_USER_PRIVATE_WORKSPACE_SLUG`,
+default `aa`).
+
+### Requirement: workspace membership SHALL gate API access cross-workspace
+
+The same workspace-membership check MUST be enforced at Plane's API
+layer, not only the UI. An SSO-authenticated non-member hitting
+`/api/workspaces/<other-slug>/<resource>/` MUST receive a 4xx
+response (403 Forbidden or 404 Not Found are both acceptable —
+404 is leak-resistant, 403 is informative).
+
+2xx on this endpoint MUST NOT happen — that would indicate Plane's
+view-level `is_authenticated` check has replaced the
+workspace-membership check, opening every authenticated user to
+every workspace's data via direct API access.
+
 ## References
 
 - `apps/api/plane/license/urls.py` — instance admin URL table

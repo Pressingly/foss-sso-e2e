@@ -1,10 +1,6 @@
-// Spec coverage for this file (see docs/spec-coverage-deferred.md):
-// (no @spec tag — per-app workspace-membership authorization is an
-//  app-functionality concern, not part of the SSO contract published
-//  in `awais786/sso-rules-moneta/openspec/specs/`. Lives under
-//  tests/apps/ alongside the other per-app contract files;
-//  documented under "Coverage outside the openspec contract scope"
-//  in docs/spec-coverage-deferred.md.)
+// Spec coverage for this file (see docs/spec-coverage.md):
+// @spec plane-admin#workspace-membership-shall-gate-ui-access-cross-workspace
+// @spec plane-admin#workspace-membership-shall-gate-api-access-cross-workspace
 //
 // Pins the **asymmetric workspace surface** model:
 //

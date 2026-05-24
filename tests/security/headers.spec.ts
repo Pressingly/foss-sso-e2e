@@ -1,3 +1,8 @@
+// Spec coverage for this file (see docs/spec-coverage.md):
+// @spec security-hardening#all-platform-hosts-shall-emit-canonical-security-headers
+// @spec security-hardening#portal-html-responses-shall-emit-csp-coop-corp
+// @spec security-hardening#platform-hosts-shall-not-leak-upstream-server-version
+
 import { test, expect, request } from "@playwright/test";
 import { APPS, MAIN_URL, AUTH_PROXY_DOMAIN, APP_URLS } from "../../constants";
 
