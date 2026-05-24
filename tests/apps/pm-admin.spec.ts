@@ -2,6 +2,9 @@
 // @spec workspace-auto-join#auto-join-role-shall-be-the-apps-regular-member-role-not-admin-or-guest
 // (this whole file is the workspace-auto-join role assertion for Plane:
 // both auto-joined SSO users land as Member, neither has Admin powers.)
+//
+// @spec plane-admin#workspace-settings-urls-shall-not-bypass-the-sso-chain
+// @spec plane-admin#auto-joined-member-shall-reach-members-page-but-lack-add-controls
 
 import { test, expect } from "../../fixtures";
 import { test as raw } from "@playwright/test";

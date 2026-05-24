@@ -38,6 +38,20 @@ if [[ -z "${SPEC_DIR:-}" && -d "$VENDOR_SPEC_DIR" ]]; then
   SPEC_DIR="$VENDOR_SPEC_DIR"
 fi
 
+# Per-app skill files live alongside specs/, in vendor/openspec/skills/.
+# They use the same `### Requirement:` shape (where refactored) so the
+# audit can walk them as additional modules. Add a skill module here
+# once it carries at least one `### Requirement:` block.
+SKILL_DIR="$REPO_ROOT/vendor/openspec/skills"
+SKILL_MODULES=(
+  outline-admin
+  twenty-admin
+  penpot-admin
+  plane-admin
+  surfsense-admin
+  security-hardening
+)
+
 SPEC_MODULES=(
   proxy-auth-middleware
   oauth2-proxy-gateway
@@ -47,6 +61,9 @@ SPEC_MODULES=(
   logout-flow
   workspace-auto-join
 )
+
+# Combined module list — order matters only for output stability.
+ALL_MODULES=("${SPEC_MODULES[@]}" "${SKILL_MODULES[@]}")
 
 # Slugify a requirement title: lowercase, collapse runs of non-alphanumerics
 # to single '-', strip leading/trailing '-'. Same convention as the matrix.
@@ -64,9 +81,15 @@ extract_reqs() {
     echo "       Restore vendor/openspec/specs or set SPEC_DIR explicitly." >&2
     return 1
   fi
-  spec_path="$SPEC_DIR/$module/spec.md"
-  if [[ ! -f "$spec_path" ]]; then
-    echo "ERROR: $spec_path not found (SPEC_DIR=$SPEC_DIR)" >&2
+  # Spec modules live at SPEC_DIR/<module>/spec.md; skill modules at
+  # SKILL_DIR/<module>/SKILL.md. Both shapes use `### Requirement:`.
+  if [[ -f "$SPEC_DIR/$module/spec.md" ]]; then
+    spec_path="$SPEC_DIR/$module/spec.md"
+  elif [[ -f "$SKILL_DIR/$module/SKILL.md" ]]; then
+    spec_path="$SKILL_DIR/$module/SKILL.md"
+  else
+    echo "ERROR: no spec.md or SKILL.md found for module '$module' under" >&2
+    echo "       $SPEC_DIR/$module/ or $SKILL_DIR/$module/" >&2
     return 1
   fi
   content=$(cat "$spec_path")
@@ -110,7 +133,7 @@ collect_deferred() {
   # subsequent backtick-wrapped list items). Require the requirement
   # title to be ≥3 chars and not start with whitespace inside the
   # backticks (catches `   ` placeholder rows).
-  awk -v modules_pipe="$(IFS='|'; echo "${SPEC_MODULES[*]}")" '
+  awk -v modules_pipe="$(IFS='|'; echo "${ALL_MODULES[*]}")" '
     BEGIN { modules_re = "^(" modules_pipe ")$" }
     /^## / {
       hdr = $0
@@ -156,7 +179,7 @@ is_in_blob() {
   printf '%s\n' "$blob" | grep -Fqx "$needle"
 }
 
-for module in "${SPEC_MODULES[@]}"; do
+for module in "${ALL_MODULES[@]}"; do
   # Call extract_reqs into a variable so its exit code propagates. Using
   # `< <(extract_reqs ...)` here would swallow a non-zero exit because
   # process substitution doesn't trip `set -e` / `pipefail` in the parent.

@@ -2,6 +2,10 @@
 // @spec workspace-auto-join#auto-join-role-shall-be-the-apps-regular-member-role-not-admin-or-guest
 // (partial — proves NORMAL_USER auto-joined as non-admin Outline user;
 // admin-only /settings/* pages are gated for them and reachable for FOSS_USER)
+//
+// @spec outline-admin#admin-settings-urls-shall-not-bypass-the-sso-chain
+// @spec outline-admin#workspace-admin-shall-reach-every-settings-page
+// @spec outline-admin#non-admin-shall-not-reach-admin-only-settings-pages
 
 import { test, expect } from "../../fixtures";
 import { test as raw, type Page } from "@playwright/test";

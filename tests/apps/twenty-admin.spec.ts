@@ -2,6 +2,10 @@
 // @spec workspace-auto-join#auto-join-role-shall-be-the-apps-regular-member-role-not-admin-or-guest
 // (partial — proves NORMAL_USER auto-joined to Twenty without
 // canAccessFullAdminPanel; admin panel renders zero markers)
+//
+// @spec twenty-admin#settings-admin-panel-shall-not-bypass-the-sso-chain
+// @spec twenty-admin#non-admin-shall-not-see-admin-panel-ui
+// @spec twenty-admin#instance-admin-shall-reach-settings-admin-panel
 
 import { test, expect } from "../../fixtures";
 import { test as raw } from "@playwright/test";

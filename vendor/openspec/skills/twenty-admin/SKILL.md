@@ -129,6 +129,37 @@ UPDATE "core"."workspaceMember"
 - **Bootstrap is by email, not by Cognito sub.** For SSO deployments where oauth2-proxy synthesises emails from numeric IDs (e.g. `1020010000005439@askii.ai`), pass the synthesised email to `--email` — it must match what `ProxyAuthMiddleware` would create.
 - **`/admin-panel-graphql-api`** is a separate endpoint. Don't issue admin operations against the main `/graphql` — the resolvers aren't there.
 
+## Requirements
+
+The following requirements pin the per-app admin contract for Twenty.
+Each is verified by a test in `tests/apps/twenty-admin.spec.ts`, linked
+via a `// @spec twenty-admin#<requirement-slug>` tag.
+
+### Requirement: /settings/admin-panel SHALL NOT bypass the SSO chain
+
+A cold context (no SSO cookie) hitting `/settings/admin-panel` MUST
+be redirected to the IDP / auth wall. Twenty's admin URLs are not
+in the ForwardAuth bypass list — there is no path that admits the
+request without a valid `_oauth2_proxy` cookie.
+
+### Requirement: non-admin SHALL NOT see admin-panel UI
+
+An SSO-authenticated user with `User.canAccessFullAdminPanel = false`
+visiting `/settings/admin-panel` MUST NOT see any admin-panel UI
+markers (Health Status, Feature Flags, Config Variables, AI Models,
+Admin Panel headings). The user remains on Twenty's host (not bounced
+to the IDP) but the AdminPanelGuard either redirects them or refuses
+to render the admin surface.
+
+### Requirement: instance admin SHALL reach /settings/admin-panel
+
+A user with `User.canAccessFullAdminPanel = true` and a valid SSO
+session MUST reach `/settings/admin-panel` with the admin UI
+rendered. Either at least one admin marker (Health Status, Feature
+Flags, etc.) is visible OR the `/admin-panel-graphql-api` endpoint
+returned a 2xx/3xx response during the page load — both are
+acceptable signals that AdminPanelGuard admitted the request.
+
 ## References
 
 - `packages/twenty-server/src/database/commands/bootstrap-sso-admin.command.ts:32` — `workspace:bootstrap-sso-admin` CLI command name; `addUserToWorkspaceOrEnsureRole` call at line 105

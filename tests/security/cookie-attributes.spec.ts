@@ -1,8 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no @spec tag — cookie *attribute* hardening is defense-in-depth
-//  beyond the openspec contract, which only specifies cookie domain
-//  scope and HMAC integrity. Tracked under "Coverage outside the
-//  openspec contract scope" in docs/spec-coverage-deferred.md.)
+// @spec security-hardening#sso-cookie-shall-be-issued-with-defense-in-depth-attributes
 
 import { test as raw, expect } from "@playwright/test";
 import { AUTH_COOKIE, COOKIE_DOMAIN } from "../../constants";

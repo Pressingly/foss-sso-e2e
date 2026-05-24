@@ -100,6 +100,65 @@ For tests that need instance-admin state:
 - The first admin row determines who can promote subsequent admins. If you lose access to the credentials, the only recovery is DB-side.
 - Workspace-level admin (`WorkspaceMember.role = 20`) is a completely separate concept — it's promoted from within a workspace by another workspace admin/owner, not from god-mode.
 
+## Requirements
+
+The following requirements pin the per-app workspace-admin contract
+for Plane. (God-mode / instance-admin coverage lives separately under
+`tests/apps/pm-godmode.spec.ts` and is already tagged against
+`forwardauth-traefik#bypass-routes-per-app-shall-match-the-documented-list`.)
+
+Each is verified by a test in `tests/apps/pm-admin.spec.ts`, linked
+via a `// @spec plane-admin#<requirement-slug>` tag.
+
+### Requirement: workspace settings URLs SHALL NOT bypass the SSO chain
+
+A cold context (no SSO cookie) hitting `/<workspace-slug>/settings/members`
+MUST be redirected to the IDP / auth wall. Workspace-scoped settings
+URLs are NOT in the ForwardAuth bypass list (unlike god-mode, which
+deliberately is — see god-mode skill above).
+
+### Requirement: auto-joined Member SHALL reach Members page but lack Add controls
+
+An SSO-authenticated user with `WorkspaceMember.role = 15` (Member)
+in the shared SMB workspace MUST be able to navigate to
+`/<workspace-slug>/settings/members` and see the members list
+(reachable, not 404 / "Workspace not found"). But the admin-only
+controls — specifically "Add member" — MUST NOT be rendered.
+
+This pins the auto-join role contract from `workspace-auto-join` at
+a UI-observable level: both FOSS_USER and NORMAL_USER auto-join as
+Member (not Admin), so both see the page but neither can invite
+others. The Admin role is held only by the bootstrap `system-bot`
+(or whoever was promoted via `provision-admin/plane.py`).
+
+### Requirement: workspace membership SHALL gate UI access cross-workspace
+
+An SSO-authenticated user with NO `WorkspaceMember` row for a given
+workspace MUST be refused at the UI layer when navigating to that
+workspace's routes. Specifically, hitting `/<other-slug>/` MUST
+render Plane's "Workspace not found" shell — NOT a bounce to the
+IDP (the user IS authenticated, just not authorised for that
+workspace), and NOT a successful page load.
+
+This pins defense-in-depth: a valid SSO session is necessary but
+NOT sufficient for cross-workspace data access. NORMAL_USER's
+membership of the shared SMB workspace MUST NOT leak access to
+FOSS_USER's private workspace (`FOSS_USER_PRIVATE_WORKSPACE_SLUG`,
+default `aa`).
+
+### Requirement: workspace membership SHALL gate API access cross-workspace
+
+The same workspace-membership check MUST be enforced at Plane's API
+layer, not only the UI. An SSO-authenticated non-member hitting
+`/api/workspaces/<other-slug>/<resource>/` MUST receive a 4xx
+response (403 Forbidden or 404 Not Found are both acceptable —
+404 is leak-resistant, 403 is informative).
+
+2xx on this endpoint MUST NOT happen — that would indicate Plane's
+view-level `is_authenticated` check has replaced the
+workspace-membership check, opening every authenticated user to
+every workspace's data via direct API access.
+
 ## References
 
 - `apps/api/plane/license/urls.py` — instance admin URL table

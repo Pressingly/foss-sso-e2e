@@ -3,6 +3,10 @@
 // (partial — proves NORMAL_USER auto-joined to SurfSense's shared
 // SearchSpace as non-Owner: role-change controls render as static
 // text for them, as interactive buttons for FOSS_USER)
+//
+// @spec surfsense-admin#searchspace-dashboard-urls-shall-not-bypass-the-sso-chain
+// @spec surfsense-admin#non-owner-shall-not-see-role-change-buttons-in-manage-members
+// @spec surfsense-admin#owner-shall-see-role-change-buttons-on-other-members-rows
 
 import { test, expect } from "../../fixtures";
 import { test as raw, type Page } from "@playwright/test";
