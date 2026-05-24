@@ -1,13 +1,18 @@
 name: Spec coverage audit
 
-# Verifies every requirement in the upstream sso-rules-moneta openspec
-# contract is either covered by a `// @spec module#slug` tag in a test
-# file OR explicitly listed in docs/spec-coverage-deferred.md.
+# Verifies every requirement in the SSO openspec contract is either
+# covered by a `// @spec module#slug` tag in a test file OR explicitly
+# listed in docs/spec-coverage-deferred.md.
 #
-# Failure mode this catches: a new requirement lands upstream (in
-# awais786/sso-rules-moneta) but no one updates this suite. The PR-time
-# job fails so the gap is visible before merge; the scheduled job catches
-# upstream drift between PRs.
+# The contract is read from `vendor/openspec/specs/` — a checked-in
+# snapshot of awais786/sso-rules-moneta refreshed via
+# `scripts/refresh-openspec.sh`. CI needs no network/token access to
+# the (private) upstream repo; drift is reconciled as a normal diff
+# whenever the refresh script is run.
+#
+# Failure mode this catches: a new requirement lands upstream and the
+# vendor is refreshed without a corresponding test tag or deferred-list
+# entry — audit fails until the gap is closed.
 
 on:
   pull_request:
@@ -15,6 +20,8 @@ on:
       - 'tests/**'
       - 'docs/spec-coverage*.md'
       - 'scripts/check-spec-coverage.sh'
+      - 'scripts/refresh-openspec.sh'
+      - 'vendor/openspec/**'
       - '.github/workflows/spec-coverage.yml'
   push:
     branches: [main]
@@ -41,7 +48,11 @@ jobs:
         id: audit
         run: |
           set -o pipefail
-          # No SPEC_DIR — script fetches from GitHub raw.
+          # Script defaults to the vendored copy at `vendor/openspec/specs/`
+          # — no SPEC_DIR or SPEC_REPO_TOKEN required. The audit is
+          # network-free at CI time. Drift from upstream is handled by
+          # running `bash scripts/refresh-openspec.sh` locally and
+          # committing the diff.
           if bash scripts/check-spec-coverage.sh | tee coverage-output.md; then
             echo "audit_exit=0" >> "$GITHUB_OUTPUT"
           else

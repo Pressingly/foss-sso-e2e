@@ -11,8 +11,14 @@
 #
 # Inputs (in order of precedence):
 #   $SPEC_DIR         — path to a local sso-rules-moneta openspec/specs checkout.
+#                       Defaults to `vendor/openspec/specs/` inside this repo
+#                       (vendored — refresh via `scripts/refresh-openspec.sh`).
+#                       Set to override for working against an alternate
+#                       checkout (e.g., a branch of sso-rules-moneta you're
+#                       drafting requirements in).
 #   $SPEC_REPO_TOKEN  — GitHub token with read access to awais786/sso-rules-moneta.
-#                       Used to fetch private openspec files via GitHub API.
+#                       Legacy network-fetch path, kept for emergency override
+#                       when the vendor is missing/stale.
 #   (fallback)        — anonymous raw fetch (works only if spec repo is public).
 #
 # Outputs:
@@ -31,6 +37,14 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 DEFERRED_FILE="$REPO_ROOT/docs/spec-coverage-deferred.md"
 TESTS_DIR="$REPO_ROOT/tests"
+
+# Default to the vendored openspec if no override is set. Vendor lives at
+# `vendor/openspec/specs/` and is refreshed via `scripts/refresh-openspec.sh`.
+# Setting SPEC_DIR / SPEC_REPO_TOKEN explicitly still overrides this default.
+VENDOR_SPEC_DIR="$REPO_ROOT/vendor/openspec/specs"
+if [[ -z "${SPEC_DIR:-}" && -z "${SPEC_REPO_TOKEN:-}" && -d "$VENDOR_SPEC_DIR" ]]; then
+  SPEC_DIR="$VENDOR_SPEC_DIR"
+fi
 
 SPEC_MODULES=(
   proxy-auth-middleware
