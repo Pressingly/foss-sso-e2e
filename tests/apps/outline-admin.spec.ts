@@ -171,11 +171,54 @@ raw.describe("Outline — admin /settings URLs (cold context)", () => {
 //     page title; ADMIN_ONLY_PATHS return Not Found / module-failed /
 //     never resolve past the SPA shell. Whole block self-skips when
 //     NORMAL_USER creds are unset.
+// Probe NORMAL_USER's actual Outline role. Outline auto-promotes the
+// first user on a fresh team to Admin (vendor/openspec/skills/outline-admin/
+// SKILL.md → "First-admin bootstrap"), so on a deployment where NORMAL_USER
+// has ever landed on Outline first, they're Admin of their OWN team and
+// the "non-admin gated" assertions can't verify the contract — they'd land
+// in their own team where they ARE admin and the page renders.
+//
+// When that's the case, we skip the ADMIN_ONLY_PATHS tests below with a
+// reason pointing at foss-server-bundle issue (provision a seeded-as-
+// Member test user). COMMON_PATHS tests still run — they pass whether
+// NORMAL_USER is admin or non-admin.
+async function probeNormalUserOutlineRole(
+  browser: import("@playwright/test").Browser,
+): Promise<string> {
+  const ctx = await browser.newContext();
+  try {
+    const page = await ctx.newPage();
+    await cognitoLogin(page, { user: NORMAL_USER!, pass: NORMAL_PASS! });
+    await page.goto(APP_URLS.Outline, {
+      waitUntil: "domcontentloaded",
+      timeout: 30_000,
+    });
+    const cookies = await ctx.cookies(APP_URLS.Outline);
+    const cookie = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+    const r = await ctx.request.post(`${APP_URLS.Outline}/api/auth.info`, {
+      headers: { cookie, "content-type": "application/json" },
+      data: {},
+    });
+    const j = (await r.json()) as { data?: { user?: { role?: string } } };
+    return j.data?.user?.role ?? "unknown";
+  } finally {
+    await ctx.close();
+  }
+}
+
+let normalUserOutlineRole: string | undefined;
+
 raw.describe("Outline — non-admin role split (NORMAL_USER)", () => {
   raw.skip(
     !NORMAL_USER || !NORMAL_PASS,
     "Set NORMAL_USER and NORMAL_PASS in .env to run the non-admin contract"
   );
+
+  raw.beforeAll(async ({ browser }) => {
+    if (normalUserOutlineRole === undefined) {
+      normalUserOutlineRole = await probeNormalUserOutlineRole(browser);
+    }
+  });
 
   for (const path of COMMON_PATHS) {
     raw(`non-admin reaches ${path} on the Outline host`, async ({ browser }) => {
@@ -206,6 +249,13 @@ raw.describe("Outline — non-admin role split (NORMAL_USER)", () => {
 
   for (const path of ADMIN_ONLY_PATHS) {
     raw(`non-admin gets Not Found on admin-only ${path}`, async ({ browser }) => {
+      raw.skip(
+        normalUserOutlineRole === "admin",
+        `NORMAL_USER's Outline role is "admin" (auto-promoted on first-team login ` +
+          `per outline-admin SKILL.md → "First-admin bootstrap"). Cannot verify ` +
+          `non-admin gate without a seeded-as-Member test user. ` +
+          `Tracking: foss-server-bundle#72.`,
+      );
       raw.setTimeout(120_000);
       const ctx = await browser.newContext();
       const page = await ctx.newPage();
