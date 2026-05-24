@@ -1,9 +1,10 @@
-# Vendored openspec + skills from `awais786/sso-rules-moneta`
+# Vendored openspec + skills
 
-Snapshot of the SSO contract this e2e suite verifies. Vendored so the
-spec-coverage audit (`scripts/check-spec-coverage.sh`) and per-app
-admin tests (`tests/apps/*-admin.spec.ts`) work from a deterministic
-local source — no network or token dependency at CI time.
+In-tree snapshot of the SSO contract this e2e suite verifies. Vendored
+so the spec-coverage audit (`scripts/check-spec-coverage.sh`) and
+per-app admin tests (`tests/apps/*-admin.spec.ts`) work from a
+deterministic local source — no network or token dependency at CI
+time.
 
 ## What's here
 
@@ -36,21 +37,9 @@ don't follow the `### Requirement:` line format that the audit
 script parses. If you refactor a SKILL.md to add `### Requirement:`
 sections, the audit will pick it up automatically.
 
-## Refreshing
+## Updating
 
-Re-vendor from a local clone of `awais786/sso-rules-moneta`:
-
-```bash
-SSO_RULES_SRC=/path/to/sso-rules-moneta bash scripts/refresh-openspec.sh
-```
-
-The script verifies the source exists, copies `openspec/specs/` and
-`skills/` into this directory, and prints a diff summary so the
-update is visible in the PR.
-
-## Pin commit
-
-Update this line when you refresh — useful for tracing which upstream
-state a given PR was tested against.
-
-**Vendored from:** `awais786/sso-rules-moneta@main` (refresh updates this)
+Edits land as normal PR diffs against the files in this directory.
+The audit picks up new `### Requirement:` lines automatically; remove
+or rename a requirement and a test's `@spec` tag will point at
+nothing — that's a CI failure pointing at the gap.

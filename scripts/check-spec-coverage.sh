@@ -9,17 +9,11 @@
 # coverage delta deterministically and fails CI when a new requirement
 # arrives without a corresponding tag or deferred-list entry.
 #
-# Inputs (in order of precedence):
-#   $SPEC_DIR         — path to a local sso-rules-moneta openspec/specs checkout.
-#                       Defaults to `vendor/openspec/specs/` inside this repo
-#                       (vendored — refresh via `scripts/refresh-openspec.sh`).
-#                       Set to override for working against an alternate
-#                       checkout (e.g., a branch of sso-rules-moneta you're
-#                       drafting requirements in).
-#   $SPEC_REPO_TOKEN  — GitHub token with read access to awais786/sso-rules-moneta.
-#                       Legacy network-fetch path, kept for emergency override
-#                       when the vendor is missing/stale.
-#   (fallback)        — anonymous raw fetch (works only if spec repo is public).
+# Inputs:
+#   $SPEC_DIR — path to an openspec/specs checkout. Defaults to
+#               `vendor/openspec/specs/` inside this repo. Set to override
+#               when working against an alternate checkout (e.g. a branch
+#               with draft requirements).
 #
 # Outputs:
 #   - stdout: markdown coverage table + delta
@@ -38,11 +32,9 @@ REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 DEFERRED_FILE="$REPO_ROOT/docs/spec-coverage-deferred.md"
 TESTS_DIR="$REPO_ROOT/tests"
 
-# Default to the vendored openspec if no override is set. Vendor lives at
-# `vendor/openspec/specs/` and is refreshed via `scripts/refresh-openspec.sh`.
-# Setting SPEC_DIR / SPEC_REPO_TOKEN explicitly still overrides this default.
+# Default to the vendored openspec when SPEC_DIR isn't explicitly set.
 VENDOR_SPEC_DIR="$REPO_ROOT/vendor/openspec/specs"
-if [[ -z "${SPEC_DIR:-}" && -z "${SPEC_REPO_TOKEN:-}" && -d "$VENDOR_SPEC_DIR" ]]; then
+if [[ -z "${SPEC_DIR:-}" && -d "$VENDOR_SPEC_DIR" ]]; then
   SPEC_DIR="$VENDOR_SPEC_DIR"
 fi
 
@@ -67,37 +59,17 @@ slugify() {
 # CI miss new requirements landing upstream.
 extract_reqs() {
   local module=$1 spec_path content
-  if [[ -n "${SPEC_DIR:-}" ]]; then
-    spec_path="$SPEC_DIR/$module/spec.md"
-    if [[ ! -f "$spec_path" ]]; then
-      echo "ERROR: $spec_path not found (SPEC_DIR=$SPEC_DIR)" >&2
-      return 1
-    fi
-    content=$(cat "$spec_path")
-  elif [[ -n "${SPEC_REPO_TOKEN:-}" ]]; then
-    local api_url="https://api.github.com/repos/awais786/sso-rules-moneta/contents/openspec/specs/$module/spec.md?ref=main"
-    if ! content=$(curl -fsSL \
-      -H "Authorization: Bearer ${SPEC_REPO_TOKEN}" \
-      -H "Accept: application/vnd.github.raw" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "$api_url" 2>&1); then
-      echo "ERROR: failed to fetch $api_url with SPEC_REPO_TOKEN" >&2
-      echo "       curl output: $content" >&2
-      echo "       verify token has read access to awais786/sso-rules-moneta." >&2
-      return 1
-    fi
-  else
-    local url="https://raw.githubusercontent.com/awais786/sso-rules-moneta/main/openspec/specs/$module/spec.md"
-    # Capture curl into a variable so we can detect failure explicitly.
-    # `set -o pipefail` doesn't propagate through process substitution
-    # `< <(extract_reqs)`, so a curl failure was previously silent.
-    if ! content=$(curl -fsSL "$url" 2>&1); then
-      echo "ERROR: failed to fetch $url" >&2
-      echo "       curl output: $content" >&2
-      echo "       set SPEC_DIR to a local openspec checkout or SPEC_REPO_TOKEN for private repo access." >&2
-      return 1
-    fi
+  if [[ -z "${SPEC_DIR:-}" ]]; then
+    echo "ERROR: SPEC_DIR is empty and vendor/openspec/specs is missing." >&2
+    echo "       Restore vendor/openspec/specs or set SPEC_DIR explicitly." >&2
+    return 1
   fi
+  spec_path="$SPEC_DIR/$module/spec.md"
+  if [[ ! -f "$spec_path" ]]; then
+    echo "ERROR: $spec_path not found (SPEC_DIR=$SPEC_DIR)" >&2
+    return 1
+  fi
+  content=$(cat "$spec_path")
 
   # Defense-in-depth: every module is expected to declare at least one
   # requirement. A zero-requirement parse means either the source was
@@ -218,7 +190,7 @@ n_miss=${#missing[@]}
 
 echo "## SSO Spec Coverage Audit"
 echo
-echo "Contract: https://github.com/awais786/sso-rules-moneta/tree/main/openspec/specs"
+echo "Contract source: \`vendor/openspec/specs/\` (snapshot vendored in this repo)"
 echo
 echo "| Status | Count |"
 echo "|---|---|"
