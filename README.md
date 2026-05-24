@@ -6,15 +6,38 @@ multi-app session sharing, cookie expiry bounds, session lifecycle
 (logout / invalidation / replay / deletion), per-app link coverage, the
 Plane god-mode admin escape hatch, Outline's admin `/settings/*` SSO-gating
 + role split, Twenty's `/settings/admin-panel` URL gate, the full
-login → 5 apps → logout user journey, and the SSO-rule invariants from
-[`sso-rules-moneta` openspec](https://github.com/awais786/sso-rules-moneta/tree/main/openspec/specs)
-(header spoofing, bypass discipline, security-header coverage on every
-router type, no local-login UI in SSO mode, cross-app identity consistency,
-HTTP plaintext lockdown).
+login → 5 apps → logout user journey, and the SSO-rule invariants from the
+[vendored openspec](./vendor/openspec/) (header spoofing, bypass discipline,
+security-header coverage on every router type, no local-login UI in SSO
+mode, cross-app identity consistency, HTTP plaintext lockdown).
 
 The suite is **environment-agnostic**. One env var (`FOSS_BASE_URL`) drives
 the entire host topology. Pointing at sandbox, staging, prod, or a local
 devstack is a one-line `.env` change — no code edits.
+
+## Spec-driven
+
+Every contract-bearing test in the suite points at a **written requirement**.
+The audit is **bidirectional** and gated by CI:
+
+- `scripts/check-spec-coverage.sh` walks requirements → tests: every
+  `### Requirement:` line in [`vendor/openspec/`](./vendor/openspec/)
+  must be tagged by at least one test, OR documented in
+  [`docs/spec-coverage-deferred.md`](./docs/spec-coverage-deferred.md).
+- The structural check in `tests/meta/playwright-practices.spec.ts`
+  walks tests → requirements: every contract-bearing `*.spec.ts` must
+  carry at least one `// @spec module#slug` tag pointing at a vendored
+  requirement (small documented allowlist for shells / scan drivers).
+
+Adding a test without a requirement → CI fails. Adding a requirement
+without a test → CI fails. Drift requires explicit human acceptance in
+both directions.
+
+**Today: 84 requirements, 0 missing** — 52 from the SSO chain openspec,
+32 from per-app admin + workspace-isolation + security-hardening skills.
+
+When CI is red, [`TRIAGE.md`](./TRIAGE.md) is the 2-minute "failure
+pattern → cause → action" runbook.
 
 ## Apps Under Test
 
@@ -141,7 +164,7 @@ not a TODO or broken test. Four categories:
 ## What's covered
 
 The full invariant contract lives in **`skills.md`** (universal rules) and
-the [`sso-rules-moneta` openspec](https://github.com/awais786/sso-rules-moneta/tree/main/openspec/specs)
+the [vendored openspec](./vendor/openspec/specs/)
 (per-module spec.md files: `forwardauth-traefik`, `oauth2-proxy-gateway`,
 `proxy-auth-middleware`, `session-lifecycle`, `logout-flow`,
 `cognito-claim-mapping`, `workspace-auto-join`). Highlights:
@@ -260,10 +283,9 @@ tests/
 `constants.ts` — single source of truth, derives every host from
 `FOSS_BASE_URL`.
 `skills.md` — local invariant contract (what every app must satisfy).
-[`sso-rules-moneta` openspec](https://github.com/awais786/sso-rules-moneta/tree/main/openspec/specs)
-— canonical edge-layer + per-app rules organised by capability spec; the
-`security/` and `identity-consistency` tests verify these on the live
-deployment.
+[vendored openspec](./vendor/openspec/) — canonical edge-layer +
+per-app rules organised by capability spec; the `security/` and
+`identity-consistency` tests verify these on the live deployment.
 
 ## Auth architecture
 
