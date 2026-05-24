@@ -45,6 +45,10 @@ fi
 SKILL_DIR="$REPO_ROOT/vendor/openspec/skills"
 SKILL_MODULES=(
   outline-admin
+  twenty-admin
+  penpot-admin
+  plane-admin
+  surfsense-admin
 )
 
 SPEC_MODULES=(

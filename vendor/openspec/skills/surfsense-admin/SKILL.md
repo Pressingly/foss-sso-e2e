@@ -129,6 +129,39 @@ If you're auditing SurfSense admin paths, ignore `ZERO_ADMIN_*` — they belong 
 - **`is_superuser` is hard-coded false** for proxy-auth users. Even if some legacy code checks it, your SSO users will never satisfy that check. Stop looking for an `is_superuser` toggle — it isn't a path.
 - **`SURFSENSE_ZERO_ADMIN_PASSWORD` is not for SurfSense.** Don't try to log into SurfSense with it.
 
+## Requirements
+
+The following requirements pin the per-app admin contract for SurfSense.
+Each is verified by a test in `tests/apps/surfsense-admin.spec.ts`, linked
+via a `// @spec surfsense-admin#<requirement-slug>` tag.
+
+### Requirement: SearchSpace dashboard URLs SHALL NOT bypass the SSO chain
+
+A cold context (no SSO cookie) hitting any
+`/dashboard/<search-space-id>/...` URL MUST be redirected to the IDP
+/ auth wall. SurfSense's dashboard URLs are not in the ForwardAuth
+bypass list.
+
+### Requirement: non-Owner SHALL NOT see role-change buttons in Manage Members
+
+An SSO-authenticated user with `search_space_memberships.is_owner = false`
+on a SearchSpace MUST be able to open the Manage Members modal but
+MUST NOT see role-change `<button>` controls next to other members'
+rows. Roles render as static text. This pins the server-side check
+in `surfsense_backend/app/routes/rbac_routes.py` that `MEMBERS_MANAGE_ROLES`
+is gated to Owners — the UI mirrors what the backend would refuse.
+
+### Requirement: Owner SHALL see role-change buttons on other members' rows
+
+A user with `is_owner = true` on a SearchSpace MUST see a role-change
+`<button>` element on each other-member row in the Manage Members
+modal. This pins the positive side of the same gate — the Owner has
+the `MEMBERS_MANAGE_ROLES` permission and the UI surfaces the
+control.
+
+SurfSense (like Penpot) deliberately hides the self-row dropdown —
+the Owner sees the control next to OTHER members, not themselves.
+
 ## References
 
 - `surfsense_backend/app/db.py:352` — `class Permission(StrEnum)` (enum body runs to ~525); `MEMBERS_MANAGE_ROLES` at line 417

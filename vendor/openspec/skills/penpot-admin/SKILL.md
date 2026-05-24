@@ -164,6 +164,39 @@ Useful when verifying the SSO chain delivered the right identity (e.g. when the 
 - **Each SSO user starts isolated.** The auto-created Default team has only them in it. They will not see your "main" team unless invited explicitly.
 - The fork's ForwardAuth implementation auto-registers — see [`penpot-security.md`](../../penpot-security.md) for the audit. The `:x-auth-request-auto-register` flag is what enables this.
 
+## Requirements
+
+The following requirements pin the per-app admin contract for Penpot.
+Each is verified by a test in `tests/apps/penpot-admin.spec.ts`, linked
+via a `// @spec penpot-admin#<requirement-slug>` tag.
+
+### Requirement: admin team URLs SHALL NOT bypass the SSO chain
+
+Cold contexts (no SSO cookie) hitting any admin team URL
+(`/#/dashboard/{members,invitations,webhooks,settings}?team-id=...`)
+MUST be redirected to the IDP / auth wall. Penpot's team admin
+pages are not in the ForwardAuth bypass list.
+
+### Requirement: non-admin SHALL NOT see Invite controls
+
+An SSO-authenticated user with team role `Editor` (or below) on a
+team they navigate to MUST NOT see the "Invite people" button on
+`/#/dashboard/invitations?team-id=<team>`. The user lands on the
+host (not bounced to the IDP) and the page renders, but the
+admin-only invite control is absent.
+
+### Requirement: team Owner SHALL see Invite + role combobox
+
+A user with `team_profile_rel.is_owner = true` for a given team
+MUST see the "Invite people" button on
+`/#/dashboard/invitations?team-id=<team>` AND a role combobox
+next to other members' rows on `/#/dashboard/members?team-id=<team>`.
+This pins both gating signals (server-side check returns
+admin-level controls, UI renders them).
+
+Penpot deliberately hides the self-row role dropdown — the Owner
+sees the combobox next to OTHER members, not themselves.
+
 ## References
 
 - `backend/src/app/http/auth_request.clj:79` — `wrap-authz` ForwardAuth middleware (auto-register at line 62 when `:x-auth-request-auto-register` flag is set; `valid-email?` at 37, `resolve-email` at 41)

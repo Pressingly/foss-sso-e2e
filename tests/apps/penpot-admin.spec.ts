@@ -2,6 +2,10 @@
 // @spec workspace-auto-join#auto-join-role-shall-be-the-apps-regular-member-role-not-admin-or-guest
 // (partial — proves NORMAL_USER auto-joined to Penpot's shared team
 // as Editor (non-Owner): "Invite people" / role combobox absent)
+//
+// @spec penpot-admin#admin-team-urls-shall-not-bypass-the-sso-chain
+// @spec penpot-admin#non-admin-shall-not-see-invite-controls
+// @spec penpot-admin#team-owner-shall-see-invite-role-combobox
 
 import { test, expect } from "../../fixtures";
 import { test as raw } from "@playwright/test";
