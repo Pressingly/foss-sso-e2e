@@ -21,7 +21,6 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 ## oauth2-proxy-gateway
 
 - `gateway SHALL use OIDC Discovery against the Cognito issuer` — **Infra-only** — bundle's `audit-sso.sh` greps for `OIDC_ISSUER_URL` config; behavioural verification would require breaking discovery to confirm.
-- `cookie secret SHALL be 32 random bytes, base64-encoded` — **Infra-only** — bundle's audit verifies length + base64 shape of `OAUTH2_PROXY_COOKIE_SECRET`.
 - `gateway SHALL use a redis-backed session store` — **Genuine test gap** — could be inferred by writing > 4KB worth of JWT into the session and asserting cookies stay small; not yet written.
 - `gateway SHALL pass access token to downstream apps when requested` — **Needs infra access** — requires `pass_access_token = true` config and a downstream endpoint that echoes the token; not exposed in current bundle.
 - `gateway SHALL use the configurable identity claim` — **Infra-only** — config-level.
@@ -97,6 +96,6 @@ By-directory exemptions (also in the meta spec):
 | Genuine test gap | 8 | Open work — candidates for the next coverage PR |
 
 Live counts from `scripts/check-spec-coverage.sh` (against current upstream):
-**25 ✅ Covered + 26 ⚠️ Deferred + 0 ❌ Missing = 51 total.**
+**59 ✅ Covered + 25 ⚠️ Deferred + 0 ❌ Missing = 84 total.**
 
-The Categories table above totals 23 deferred — the remaining 3 are upstream requirements added since this table was last refreshed; re-run the script and refresh manually when the gap matters. (Or vendor the openspec so the table can be regenerated automatically.)
+The Categories table above is a manual rationale breakdown and may lag module growth (especially when vendored skill modules add requirements). Use `make audit` as the source of truth for live counts.

@@ -31,7 +31,7 @@ Traceability matrix between [awais786/sso-rules-moneta openspec contract](https:
 | gateway SHALL use OIDC Discovery against the Cognito issuer | ⚠️ Deferred | — |
 | cookie domain SHALL be the platform parent domain | ✅ | `tests/auth/session-sharing.spec.ts`, `tests/auth/sso-login.spec.ts` |
 | gateway SHALL emit X-Auth-Request-* headers on authenticated responses | ✅ | `tests/auth/identity-consistency.spec.ts` |
-| cookie secret SHALL be 32 random bytes, base64-encoded | ⚠️ Deferred | — |
+| cookie secret SHALL be 32 random bytes, base64-encoded | ✅ (indirect) | `tests/security/cookie-tampering.spec.ts` (runtime HMAC validation proves the secret is enforced) |
 | gateway SHALL use a redis-backed session store | ⚠️ Deferred | — |
 | gateway SHALL pass access token to downstream apps when requested | ⚠️ Deferred | — |
 | gateway SHALL use the configurable identity claim | ⚠️ Deferred | — |

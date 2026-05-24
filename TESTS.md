@@ -75,7 +75,7 @@ Plane's god-mode (which sits outside the SSO chain).
 
 | Env var | Identity | Role | Where used |
 |---|---|---|---|
-| `FOSS_USER` / `FOSS_PASS` | **User A** | Admin across every SSO app (Outline `role=admin`, Penpot/SurfSense Owner of own workspace, Twenty `canAccessFullAdminPanel=true`) | Worker fixture — auto-logged-in for every `test()` block |
+| `FOSS_USER` / `FOSS_PASS` | **User A** | Mixed app surface by deployment: admin/owner in Outline, Penpot, SurfSense, and Twenty; shared-workspace Member in Plane unless explicitly promoted | Worker fixture — auto-logged-in for every `test()` block |
 | `NORMAL_USER` / `NORMAL_PASS` | **User B** | Non-admin baseline — never promoted | Non-admin role-split blocks (loaded explicitly in fresh contexts) |
 | `PLANE_ADMIN_USER` / `PLANE_ADMIN_PASS` | Plane local admin | Instance admin for Plane's `/god-mode` only (local email + password — bypasses SSO entirely) | `tests/apps/pm-godmode.spec.ts` |
 

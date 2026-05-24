@@ -2,21 +2,36 @@
 // Environment configuration
 // ---------------------------------------------------------------------------
 // Single source of truth: FOSS_BASE_URL (the main portal). Everything else
-// — per-app hosts, ForwardAuth host, cookie domain — is derived from it
-// using the FOSS naming convention:
+// -- per-app hosts, ForwardAuth host, cookie domain -- is derived from it.
 //
-//   FOSS_BASE_URL           = https://foss.<domain>
-//   ForwardAuth host        = auth.foss.<domain>
-//   Outline (Docs)          = https://docs.foss.<domain>
-//   Plane (PM)              = https://pm.foss.<domain>
-//   Penpot (Design)         = https://design.foss.<domain>
-//   SurfSense (Research)    = https://research.foss.<domain>
-//   Twenty (CRM)            = https://twenty.foss.<domain>
-//   Cookie domain           = foss.<domain>     (i.e. MAIN_URL hostname)
+// Two host topologies are supported via FOSS_HOST_TOPOLOGY:
 //
-// Pointing the suite at a different deployment is a one-line .env change:
-//   FOSS_BASE_URL=https://foss.example.com
+//   nested (default):
+//     FOSS_BASE_URL           = https://foss.<domain>
+//     ForwardAuth host        = auth.foss.<domain>
+//     Outline (Docs)          = https://docs.foss.<domain>
+//     Plane (PM)              = https://pm.foss.<domain>
+//     Penpot (Design)         = https://design.foss.<domain>
+//     SurfSense (Research)    = https://research.foss.<domain>
+//     Twenty (CRM)            = https://twenty.foss.<domain>
+//     Cookie domain           = foss.<domain>
 //
+//   peer:
+//     FOSS_BASE_URL           = https://foss.<smb-domain>
+//     ForwardAuth host        = auth.<smb-domain>
+//     Outline (Docs)          = https://docs.<smb-domain>
+//     Plane (PM)              = https://pm.<smb-domain>
+//     Penpot (Design)         = https://design.<smb-domain>
+//     SurfSense (Research)    = https://research.<smb-domain>
+//     Twenty (CRM)            = https://twenty.<smb-domain>
+//     Cookie domain           = <smb-domain>
+//
+// Example peer deployment:
+//   FOSS_BASE_URL=https://foss.platform.askii.ai
+//   FOSS_HOST_TOPOLOGY=peer
+//   => docs.platform.askii.ai, pm.platform.askii.ai, auth.platform.askii.ai
+//
+// Pointing the suite at a different deployment is still an env-only change.
 // IDP hosts (Cognito + mPass) genuinely differ between deployments and are
 // kept as separate env vars (FOSS_COGNITO_DOMAIN, FOSS_MPASS_DOMAIN).
 // ---------------------------------------------------------------------------
@@ -37,19 +52,29 @@ const csv = (key: string, fallback: string): string[] =>
 // ---------------------------------------------------------------------------
 
 export const MAIN_URL = env("FOSS_BASE_URL", "https://foss.arbisoft.com");
+const HOST_TOPOLOGY = env("FOSS_HOST_TOPOLOGY", "nested");
+const USE_PEER_TOPOLOGY = HOST_TOPOLOGY === "peer";
 
-// Platform domain == the MAIN_URL hostname itself. Per-app hosts are
-// nested as `<app>.foss.<domain>` (e.g. docs.foss.arbisoft.com), and the
-// SSO cookie is scoped to this domain so it's shared across every app
-// subdomain but does NOT leak to sibling subdomains of <domain>.
+// Platform domain == the MAIN_URL hostname itself.
+// For nested topology, app hosts are `<app>.<MAIN_HOST>`.
+// For peer topology, app hosts are `<app>.<SMB_DOMAIN>`, where SMB_DOMAIN is
+// MAIN_HOST without the leading `foss.` label when present.
 const PLATFORM_DOMAIN = new URL(MAIN_URL).hostname;
+const SMB_DOMAIN = PLATFORM_DOMAIN.startsWith("foss.")
+  ? PLATFORM_DOMAIN.slice("foss.".length)
+  : PLATFORM_DOMAIN;
 
 const SCHEME = new URL(MAIN_URL).protocol; // "https:" usually
 
-const sub = (prefix: string): string => `${SCHEME}//${prefix}.${PLATFORM_DOMAIN}`;
+const sub = (prefix: string): string => {
+  const base = USE_PEER_TOPOLOGY ? SMB_DOMAIN : PLATFORM_DOMAIN;
+  return `${SCHEME}//${prefix}.${base}`;
+};
 
-export const AUTH_PROXY_DOMAIN = `auth.${PLATFORM_DOMAIN}`;
-export const COOKIE_DOMAIN     = PLATFORM_DOMAIN;
+export const AUTH_PROXY_DOMAIN = USE_PEER_TOPOLOGY
+  ? `auth.${SMB_DOMAIN}`
+  : `auth.${PLATFORM_DOMAIN}`;
+export const COOKIE_DOMAIN = USE_PEER_TOPOLOGY ? SMB_DOMAIN : PLATFORM_DOMAIN;
 
 export const COOKIE_DOMAIN_REGEX = new RegExp(
   `\\.?${COOKIE_DOMAIN.replace(/\./g, "\\.")}$`
