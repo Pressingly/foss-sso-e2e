@@ -1,3 +1,6 @@
+// Spec coverage for this file (see docs/spec-coverage.md):
+// @spec security-hardening#platform-hosts-shall-enforce-https-refusing-plaintext
+
 import { test, expect, request } from "@playwright/test";
 import { APPS, MAIN_URL, AUTH_PROXY_DOMAIN } from "../../constants";
 

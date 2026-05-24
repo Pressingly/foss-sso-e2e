@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — orthogonal OWASP A02-aligned coverage:
-// cryptographic-failure / JWT algorithm validation)
+// @spec security-hardening#jwt-algorithm-confusion-shall-be-mitigated
 
 import { test, expect, request } from "@playwright/test";
 import { APP_URLS } from "../../constants";

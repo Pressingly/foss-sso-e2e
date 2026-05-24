@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — generic SSO UX contract)
-// Tracked as orthogonal coverage in spec-coverage-deferred.md.
+// @spec security-hardening#post-login-redirect-shall-preserve-the-original-intent
 
 import { test as raw, expect } from "@playwright/test";
 import { APPS, isAuthWall } from "../../constants";

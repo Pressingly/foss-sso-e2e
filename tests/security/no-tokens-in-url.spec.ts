@@ -1,6 +1,5 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// (no openspec requirement — generic OWASP A09 / sensitive-data-exposure)
-// Tracked as orthogonal coverage in spec-coverage-deferred.md.
+// @spec security-hardening#sso-chain-shall-not-expose-tokens-in-url-query-params
 
 import { test as raw, expect } from "@playwright/test";
 import { APPS, FOSS_HOST_REGEX } from "../../constants";

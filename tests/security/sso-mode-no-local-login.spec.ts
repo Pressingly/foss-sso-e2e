@@ -1,3 +1,6 @@
+// Spec coverage for this file (see docs/spec-coverage.md):
+// @spec security-hardening#sso-mode-apps-shall-not-expose-local-login-forms
+
 import { test, expect } from "@playwright/test";
 import { APPS, isAuthWall, AppName } from "../../constants";
 
