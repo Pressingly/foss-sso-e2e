@@ -7,6 +7,7 @@ import { test, expect } from "../../fixtures";
 import { request, BrowserContext } from "@playwright/test";
 import { APP_URLS } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
+import { blockedAppsMessage } from "../lib/app-health-probes";
 
 // Verifies every backend's view of the logged-in user converges on the
 // same email. `cognito-claim-mapping#identity-claim-shall-be-configurable-
@@ -124,7 +125,10 @@ test.describe("Cross-app identity consistency", () => {
   test("every backend resolves the logged-in user to the same email", async ({
     context,
     page,
+    appHealth,
   }) => {
+    const blocked = blockedAppsMessage(appHealth, "PM", "Outline", "Penpot", "SurfSense");
+    test.skip(!!blocked, blocked ?? "");
     test.setTimeout(120_000);
 
     // Warm each app once so per-host cookies are in the jar. Penpot and

@@ -62,6 +62,17 @@ The canonical SSO rule source is the openspec at
 - **TS strict + `noUncheckedIndexedAccess`** are on. For provably-safe
   array access (e.g. `APPS[0]` where `APPS` is a hardcoded 5-entry
   ReadonlyArray), use the `!` non-null assertion rather than restructuring.
+- **Block-on-smoke for cross-app tests.** Tests that iterate every app
+  (cross-app probes, link-coverage, per-app logout iteration) MUST
+  consult the worker `appHealth` fixture and `test.skip` with the
+  output of `blockedAppsMessage()` from `tests/lib/app-health-probes.ts`
+  when a required app's SSO chain is broken. This keeps a single
+  bundle issue from cascading into N red tests. The per-app login
+  smoke (`tests/auth/per-app-login-smoke.spec.ts`) is the named loud
+  signal — every cascade skip reason points back at it. Per-app
+  contract tests (`twenty-admin`, `surfsense-admin`, etc.)
+  deliberately do NOT use the gate — they should fail loud when their
+  target app is broken.
 
 ## Deployment gotchas
 

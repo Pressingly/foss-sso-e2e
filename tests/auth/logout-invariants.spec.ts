@@ -3,10 +3,11 @@
 // @spec logout-flow#logout-shall-be-observable-and-idempotent
 // @spec logout-flow#per-app-logout-shall-be-navigation-only
 
-import { test, expect } from "@playwright/test";
+import { test, expect } from "../../fixtures";
 import { APPS, AUTH_COOKIE, MAIN_URL, isAuthWall } from "../../constants";
 import { openLogoutMenu } from "../lib/app-menus";
 import { freshLogin, clickPortalLogoutAll } from "../lib/common-flows";
+import { blockedAppsMessage } from "../lib/app-health-probes";
 
 // The three invariants pinned down here, all from
 // sso-rules-moneta/openspec/specs/logout-flow/spec.md:
@@ -225,7 +226,10 @@ test.describe("Logout invariants — per-app navigation-only", () => {
   for (const app of APPS) {
     test(`${app.name}: per-app Logout control is navigation-only`, async ({
       browser,
+      appHealth,
     }) => {
+      const blocked = blockedAppsMessage(appHealth, app.name);
+      test.skip(!!blocked, blocked ?? "");
       test.setTimeout(120_000);
       const { context, page } = await freshLogin(browser);
 

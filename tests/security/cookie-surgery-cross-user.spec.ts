@@ -24,10 +24,12 @@
 // are required (one for the cookie source, one for the victim
 // session being attacked).
 
-import { test as raw, expect, request, BrowserContext } from "@playwright/test";
+import { test, expect } from "../../fixtures";
+import { request, BrowserContext } from "@playwright/test";
 import { cognitoLogin } from "../../auth-helpers";
 import { APP_URLS, AUTH_COOKIE, COGNITO_EMAIL_DOMAIN } from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
+import { blockedAppsMessage } from "../lib/app-health-probes";
 
 const FOSS_USER = process.env.FOSS_USER;
 const FOSS_PASS = process.env.FOSS_PASS;
@@ -99,16 +101,19 @@ const IDENTITY_PROBES: Record<string, IdentityProbe> = {
   },
 };
 
-raw.describe("Cookie surgery — stolen SSO cookie used against another user's session", () => {
-  raw.skip(
+test.describe("Cookie surgery — stolen SSO cookie used against another user's session", () => {
+  test.skip(
     !FOSS_USER || !FOSS_PASS || !NORMAL_USER || !NORMAL_PASS,
     "Need FOSS_USER + NORMAL_USER (and their passwords) — one for the cookie source, one for the victim session",
   );
 
-  raw("FOSS_USER cookie planted in NORMAL_USER's context → all apps see FOSS_USER (identity-mismatch flush)", async ({
+  test("FOSS_USER cookie planted in NORMAL_USER's context → all apps see FOSS_USER (identity-mismatch flush)", async ({
     browser,
+    appHealth,
   }) => {
-    raw.setTimeout(240_000);
+    const blocked = blockedAppsMessage(appHealth, "PM", "Outline", "Penpot", "SurfSense");
+    test.skip(!!blocked, blocked ?? "");
+    test.setTimeout(240_000);
 
     const fossEmail = synthesizeEmail(FOSS_USER!);
     const normalEmail = synthesizeEmail(NORMAL_USER!);

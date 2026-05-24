@@ -109,6 +109,18 @@ export function escapeHostForRegex(hostname: string): string {
   return hostname.replace(/\./g, "\\.");
 }
 
+// Reverse-lookup an AppName from a baseUrl (e.g. APP_URLS.Twenty →
+// "Twenty"). Used by lib helpers that take a baseUrl but need the
+// canonical AppName key — e.g. registerLinkCoverage gating on
+// `appHealth[<AppName>]`.
+const URL_TO_APP_NAME = Object.fromEntries(
+  (Object.entries(APP_URLS) as [AppName, string][]).map(([name, url]) => [url, name]),
+) as Record<string, AppName>;
+
+export function appNameForBaseUrl(baseUrl: string): AppName | undefined {
+  return URL_TO_APP_NAME[baseUrl];
+}
+
 // Identity-domain suffix synthesised onto Cognito bare-username `sub`
 // claims by per-app middleware. Tests that match `<digits>@<domain>`
 // for User A / User B identities read this rather than hard-coding the
