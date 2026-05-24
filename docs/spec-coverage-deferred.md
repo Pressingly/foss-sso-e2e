@@ -73,7 +73,7 @@ These specs live in the suite but pin per-app *authorization gating* or *app-fun
 
 | Spec file | What it verifies | Why no `@spec` tag |
 |---|---|---|
-| `tests/apps/outline-admin.spec.ts` | FOSS_USER (Outline `users.role = 'admin'`) reaches every `/settings/*` admin page; NORMAL_USER is gated (404 / module-failed shell) for ADMIN_ONLY paths and reaches COMMON paths | Outline's per-team role model is product-internal; the SSO contract only delivers `X-Auth-Request-Email` and does not specify what each app does with it |
+| ~~`tests/apps/outline-admin.spec.ts`~~ | _Tagged against `outline-admin` skill (issue #32, first vertical slice). Tracks 3 requirements: cold-bypass, admin reach, non-admin gate. No longer orphan-listed._ |  |
 | `tests/apps/twenty-admin.spec.ts` | FOSS_USER reaches `/settings/admin-panel` (requires `User.canAccessFullAdminPanel`); NORMAL_USER is bounced to `/objects/companies` | `canAccessFullAdminPanel` is Twenty-internal; the spec contract doesn't touch instance-admin flags |
 | `tests/apps/penpot-admin.spec.ts` | FOSS_USER (team Owner) sees "Invite people" + role combobox on `/#/dashboard/{invitations,members}`; NORMAL_USER (Editor) doesn't | Penpot team roles are product-internal |
 | `tests/apps/surfsense-admin.spec.ts` | FOSS_USER (SearchSpace Owner) sees role-change `<button>` on other members' rows in the Manage Members modal; NORMAL_USER (Editor) sees them as static text | SurfSense `search_space_memberships.is_owner` is product-internal |

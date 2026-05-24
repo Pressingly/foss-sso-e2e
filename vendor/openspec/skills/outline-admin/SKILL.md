@@ -91,6 +91,51 @@ For tests that need an admin user:
 - **No /admin URL.** Don't waste time looking for one; admin is just `user.role === "admin"` plus the normal Outline UI.
 - The fork patch in `Pressingly/outline` PR #18 fixed an `Op.iLike` impersonation vector in the ForwardAuth branch ([`outline-security.md`](../../outline-security.md)). Don't re-introduce `LIKE` matching on `email` if you edit that path.
 
+## Requirements
+
+The following requirements pin the per-app admin contract for Outline.
+Each is verified by a test in `tests/apps/outline-admin.spec.ts`, linked
+via a `// @spec outline-admin#<requirement-slug>` tag.
+
+### Requirement: admin /settings URLs SHALL NOT bypass the SSO chain
+
+Cold contexts (no SSO cookie) hitting any `/settings/*` path on the
+Outline host MUST be redirected to the IDP / auth wall. Outline's
+admin URLs are not in the ForwardAuth bypass list — there is no path
+that admits the request without a valid `_oauth2_proxy` cookie.
+
+This is a defense-in-depth check on top of the global SSO chain: it
+guards against a regression where an `/settings/*` route gets
+accidentally moved into the bypass-routed router class.
+
+### Requirement: workspace admin SHALL reach every /settings page
+
+A user with `User.role = "admin"` and a valid SSO session for that
+user's team MUST land on each `/settings/*` page with the app's
+normal page chrome — specifically, a real document title (not a 404,
+"Not Found" body, or module-failed SPA shell). This pins both:
+
+- the cookie + per-app session is sufficient to authenticate against
+  the route's role check,
+- the per-app session was bootstrapped with the `Admin` role and
+  not silently downgraded (e.g. by `team.defaultUserRole` mismatch).
+
+### Requirement: non-admin SHALL NOT reach admin-only /settings pages
+
+A user with `User.role != "admin"` hitting an admin-gated path
+(e.g. `/settings/people`, `/settings/details`, `/settings/integrations`)
+MUST be gated server-side — the response is one of: a non-admin
+landing redirect, a "Not Found" body, or an SPA shell that never
+progresses past loading.
+
+Crucially, the gate MUST be server-side: a non-admin who pokes the
+URL directly (not just via the UI) MUST also be refused. UI-only
+hiding would leave the API surface open to a determined non-admin.
+
+Common paths (e.g. `/settings/profile`) MUST remain reachable for
+the same non-admin user — this distinguishes "admin-only" from
+"broken auth chain."
+
 ## References
 
 - `shared/types.ts:2-7` — `UserRole` enum
