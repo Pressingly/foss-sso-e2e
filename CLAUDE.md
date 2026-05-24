@@ -54,8 +54,20 @@ structure and how to update it.
   - `escapeHostForRegex(host)` from `constants.ts` — instead of `.replace(/\./g, "\\.")`.
 - **`@spec <module>#<requirement-slug>` tag above the `test()`** is the
   canonical link between a test and the openspec requirement it pins.
-  `scripts/check-spec-coverage.sh` enforces every requirement is either
-  tagged or in `docs/spec-coverage-deferred.md`.
+  The audit is **bidirectional**:
+  - `scripts/check-spec-coverage.sh` enforces every vendored
+    requirement is either tagged or in
+    `docs/spec-coverage-deferred.md` (requirements → tests).
+  - The structural check in `tests/meta/playwright-practices.spec.ts`
+    enforces every contract-bearing spec file under `tests/` carries
+    at least one `@spec` tag (tests → requirements). `tests/bugs/`,
+    `tests/zap/`, `tests/meta/` are exempt by directory; a tiny
+    `UNTAGGED_ALLOWLIST` carries individual files with documented
+    reasons (per-app shell registrations, storage-layer tests).
+  - To add a new test, EITHER tag it against an existing requirement
+    OR add a new `### Requirement:` line to the matching SKILL.md /
+    spec.md, OR (rarely) extend `UNTAGGED_ALLOWLIST` with a one-line
+    rationale. CI rejects the PR otherwise.
 - **Tests behave like humans.** No cookie/storage mocking shortcuts.
   Flake fixes mirror human pacing (real clicks, locator state waits over
   `waitForTimeout`).
