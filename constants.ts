@@ -232,7 +232,7 @@ export const PLANE_WORKSPACE_ID =
 export const OUTLINE_TEAM_ID =
   env("OUTLINE_TEAM_ID", "1a2e0bad-3c60-40a5-92b5-98b6b71c3316");
 export const SURFSENSE_SEARCH_SPACE_ID =
-  env("SURFSENSE_SEARCH_SPACE_ID", "1");
+  env("SURFSENSE_SEARCH_SPACE_ID", "17");
 
 // A workspace FOSS_USER is in but NORMAL_USER is NOT — used by
 // workspace-membership-isolation tests (NORMAL_USER must not see

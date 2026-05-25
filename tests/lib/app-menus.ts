@@ -132,14 +132,20 @@ export const openLogoutMenu: Record<AppName, (page: Page) => Promise<Locator>> =
     return logout;
   },
 
-  // SurfSense — bottom-of-sidebar user-info row. The text content
-  // includes the synthesised Cognito email (numeric@askii.ai). Filter
-  // buttons by hasText regex to find the row, click it, then Radix
-  // renders a role=menuitem Logout after ~1s animation.
+  // SurfSense — sidebar user-info avatar. Post-2026-05 UI redesign:
+  // trigger is now a circular <div> (NOT a <button>) sized `h-10 w-10`,
+  // containing the user's first two digits as initial (e.g. "10" for
+  // "1020010000019120"). Click → Radix DropdownMenu → role=menuitem
+  // Logout inside.
+  //
+  // Selector picks the indigo-backgrounded avatar via its inline
+  // `background-color: rgb(99, 102, 241)` (Tailwind indigo-500, the
+  // user-identity colour). Member-list avatars on the Members page
+  // use the same div shape but get per-user colours, so the inline
+  // style disambiguates the sidebar user-info avatar.
   SurfSense: async (page) => {
     await page
-      .locator("button")
-      .filter({ hasText: /\d{5,}@/ })
+      .locator('div.rounded-full[style*="rgb(99, 102, 241)"]')
       .first()
       .click({ timeout: 10_000 });
     const logout = page.getByRole("menuitem", { name: /^logout$/i });

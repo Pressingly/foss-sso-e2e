@@ -10,7 +10,7 @@
 
 import { test, expect } from "../../fixtures";
 import { test as raw, type Page } from "@playwright/test";
-import { APP_URLS, IDP_REGEX, isAuthWall } from "../../constants";
+import { APP_URLS, IDP_REGEX, SURFSENSE_SEARCH_SPACE_ID, isAuthWall } from "../../constants";
 import { cognitoLogin } from "../../auth-helpers";
 
 // SurfSense admin contract (foss-server-bundle admin.md):
@@ -30,8 +30,6 @@ import { cognitoLogin } from "../../auth-helpers";
 //     sandbox SearchSpace where FOSS_USER is Owner and NORMAL_USER is
 //     Editor. Override via SURFSENSE_SEARCH_SPACE_ID.
 
-const SURFSENSE_SEARCH_SPACE_ID = process.env.SURFSENSE_SEARCH_SPACE_ID ?? "7";
-
 const NORMAL_USER = process.env.NORMAL_USER;
 const NORMAL_PASS = process.env.NORMAL_PASS;
 
@@ -42,6 +40,12 @@ const DASHBOARD_URL = `${BASE}/dashboard/${SURFSENSE_SEARCH_SPACE_ID}/new-chat`;
 // "Manage members" lives behind two clicks from the dashboard. Wrapping
 // the navigation lets both the admin-positive and non-admin-gated tests
 // share the same path.
+//
+// SurfSense UI redesign (2026-05): Manage Members is no longer a modal
+// dialog — clicking the menuitem now navigates to a dedicated page
+// route. The function name is kept (`...Modal`) for callsite stability
+// but the post-click readiness signal is now an "Invite members"
+// button that's only rendered on the new page.
 async function openManageMembersModal(page: Page): Promise<void> {
   // Pre-warm: hit BASE first so SurfSense's auth middleware can
   // initialize the session before we go after a deep route. Going
@@ -67,9 +71,11 @@ async function openManageMembersModal(page: Page): Promise<void> {
     .first()
     .click({ timeout: 10_000 });
   await page.getByRole("menuitem", { name: /manage members/i }).click({ timeout: 10_000 });
-  await expect(page.getByRole("dialog", { name: /manage members/i })).toBeVisible({
-    timeout: 15_000,
-  });
+  // New shape: page-route, not dialog. The "Invite members" CTA on
+  // the new Members page is a reliable post-navigation readiness signal.
+  await expect(
+    page.getByRole("button", { name: /invite members/i }),
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 // (1) Cold context: the SurfSense dashboard sits fully behind SSO.
@@ -111,14 +117,12 @@ raw.describe("SurfSense — non-admin (Editor) is gated", () => {
       await cognitoLogin(page, { user: NORMAL_USER!, pass: NORMAL_PASS! });
       await openManageMembersModal(page);
 
-      const dialog = page.getByRole("dialog", { name: /manage members/i });
-      // SurfSense's role labels are Owner / Editor / Viewer. The Owner
-      // sees these as <button> elements on rows *other than their own*;
-      // a non-owner sees the same labels as plain text. We assert the
-      // absence of any role-change button inside the dialog.
+      // Post-2026-05 UI: the Members page renders the role column as
+      // plain text for non-Owner viewers, as a clickable <button> for
+      // the Owner. Page-scope the query (no longer a dialog).
       await expect(
-        dialog.getByRole("button", { name: /^(owner|editor|viewer|admin)$/i }),
-        "Non-admin Editor must not see any role-change button in the Manage Members modal"
+        page.getByRole("button", { name: /^(owner|editor|viewer|admin)$/i }),
+        "Non-admin Editor must not see any role-change button on the Manage Members page"
       ).toHaveCount(0);
     } finally {
       await ctx.close();
@@ -136,14 +140,13 @@ test.describe("SurfSense — admin (FOSS_USER, Owner) reaches owner-only control
   }) => {
     await openManageMembersModal(page);
 
-    const dialog = page.getByRole("dialog", { name: /manage members/i });
-    // The Owner's own row has a plain "Owner" cell (own role isn't
-    // editable). Other members' rows expose a clickable
-    // <button name="<role>"> for role-change. With 2 members in the
-    // sandbox SearchSpace, the count of role buttons should be 1
-    // (the non-owner row). On larger SearchSpaces, > 0 is enough.
+    // Post-2026-05 UI: the Members page renders role labels as
+    // clickable <button> elements for the Owner on other members'
+    // rows. With 2 members in the sandbox SearchSpace, count should
+    // be ≥ 1 (the non-owner row). Page-scope the query (no longer
+    // a dialog).
     await expect(
-      dialog.getByRole("button", { name: /^(owner|editor|viewer|admin)$/i }),
+      page.getByRole("button", { name: /^(owner|editor|viewer|admin)$/i }),
       "Owner must see at least one role-change button (other members' role labels are clickable)"
     ).not.toHaveCount(0);
   });
