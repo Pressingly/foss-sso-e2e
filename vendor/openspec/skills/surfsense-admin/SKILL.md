@@ -25,14 +25,16 @@ https://research.${PLATFORM_DOMAIN}/dashboard/<search-space-id>   # SearchSpace 
 https://research.${PLATFORM_DOMAIN}/dashboard/<search-space-id>/user-settings  # personal settings
 ```
 
-**Member management is a dialog, not a page.** `/dashboard/<search-space-id>/team` 404s — the `team/` folder only contains `team-content.tsx` (no `page.tsx`), which gets rendered inside a modal dialog (`components/settings/team-dialog.tsx`). The dialog is opened from the **SearchSpace name dropdown** at the top of the left sidebar:
+**Member management UI shape varies by SurfSense release.** Pre-2026-05 the same React content (`team-content.tsx`) was rendered inside a modal dialog (`components/settings/team-dialog.tsx`); after that the bundle's SurfSense renders it on a dedicated page route. The contract — what's visible to Owners vs. non-Owners — is identical in both shapes. Tests target the rendered content (Invite Members button, role-change buttons on member rows) rather than the dialog vs. page wrapper, so they survive the shape change.
+
+The trigger is the **SearchSpace name dropdown** at the top of the left sidebar:
 
 1. Click the SearchSpace name (with the `⇅` `ChevronsUpDown` icon) at the top of the sidebar.
 2. Dropdown shows two items (defined in `components/layout/ui/sidebar/SidebarHeader.tsx:50-58`):
-   - **Manage Members** → opens TeamDialog (`LayoutDataProvider.tsx:593-595` → `setTeamDialogOpen(true)`)
-   - **Search Space Settings** → opens settings dialog
+   - **Manage Members** → opens TeamContent (as dialog OR page, depending on release)
+   - **Search Space Settings** → opens settings (same shape rules apply)
 
-The TeamContent inside the dialog (`surfsense_web/app/dashboard/[search_space_id]/team/team-content.tsx`) gates these UI surfaces on RBAC permissions checked at lines 205-207:
+The TeamContent (`surfsense_web/app/dashboard/[search_space_id]/team/team-content.tsx`) gates these UI surfaces on RBAC permissions checked at lines 205-207:
 
 | Permission | UI surface unlocked |
 |---|---|
@@ -145,19 +147,20 @@ bypass list.
 ### Requirement: non-Owner SHALL NOT see role-change buttons in Manage Members
 
 An SSO-authenticated user with `search_space_memberships.is_owner = false`
-on a SearchSpace MUST be able to open the Manage Members modal but
-MUST NOT see role-change `<button>` controls next to other members'
-rows. Roles render as static text. This pins the server-side check
-in `surfsense_backend/app/routes/rbac_routes.py` that `MEMBERS_MANAGE_ROLES`
+on a SearchSpace MUST be able to reach the Manage Members surface
+(modal or page, depending on release) but MUST NOT see role-change
+`<button>` controls next to other members' rows. Roles render as
+static text. This pins the server-side check in
+`surfsense_backend/app/routes/rbac_routes.py` that `MEMBERS_MANAGE_ROLES`
 is gated to Owners — the UI mirrors what the backend would refuse.
 
 ### Requirement: Owner SHALL see role-change buttons on other members' rows
 
 A user with `is_owner = true` on a SearchSpace MUST see a role-change
 `<button>` element on each other-member row in the Manage Members
-modal. This pins the positive side of the same gate — the Owner has
-the `MEMBERS_MANAGE_ROLES` permission and the UI surfaces the
-control.
+surface (modal or page, depending on release). This pins the
+positive side of the same gate — the Owner has the
+`MEMBERS_MANAGE_ROLES` permission and the UI surfaces the control.
 
 SurfSense (like Penpot) deliberately hides the self-row dropdown —
 the Owner sees the control next to OTHER members, not themselves.
