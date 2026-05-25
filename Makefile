@@ -38,6 +38,25 @@ pre-commit: typecheck audit ## Run typecheck + audit before pushing. Add a fast 
 	@echo "✓ typecheck + spec-coverage audit clean"
 
 test: ## Run full test suite
+	@# Guard against the common footgun: someone runs `make test ID=FOSSSMBBUN-112 FORCE=1`
+	@# from the repo root, intending to invoke the test-writer agent. The agent's
+	@# Makefile lives in agents/test-writer/ and shares the `test` verb. Without
+	@# this guard, ID/FORCE/RETRY are silently ignored and the full 324-test suite
+	@# kicks off — a 30+ minute wrong-turn before the user realises.
+	@if [ -n "$(ID)" ] || [ -n "$(FORCE)" ] || [ -n "$(RETRY)" ]; then \
+		echo "" >&2; \
+		echo "ERROR: 'make test' at the repo root runs the Playwright suite — it doesn't" >&2; \
+		echo "       accept ID / FORCE / RETRY (those belong to the test-writer agent)." >&2; \
+		echo "" >&2; \
+		echo "       Did you mean to invoke the test-writer agent? Run:" >&2; \
+		echo "" >&2; \
+		echo "         cd agents/test-writer && make test ID=$(ID)$(if $(FORCE), FORCE=$(FORCE))$(if $(RETRY), RETRY=$(RETRY))" >&2; \
+		echo "" >&2; \
+		echo "       If you actually wanted the full Playwright suite, drop the ID/FORCE/RETRY" >&2; \
+		echo "       arguments: 'make test'." >&2; \
+		echo "" >&2; \
+		exit 2; \
+	fi
 	$(NPM) test
 
 test-auth: ## Run auth tests
