@@ -8,7 +8,8 @@
 // @spec outline-admin#non-admin-shall-not-reach-admin-only-settings-pages
 
 import { test, expect } from "../../fixtures";
-import { test as raw, type Page } from "@playwright/test";
+import { test as raw, type Page, type Response } from "@playwright/test";
+import { setTimeout as delay } from "node:timers/promises";
 import { APP_URLS, IDP_REGEX, isAuthWall } from "../../constants";
 import { cognitoLogin } from "../../auth-helpers";
 
@@ -68,7 +69,7 @@ const ADMIN_ONLY_PATHS = [
 
 const ALL_PATHS = [...COMMON_PATHS, ...ADMIN_ONLY_PATHS] as const;
 
-const MAX_SETTINGS_ATTEMPTS = process.env.CI ? 3 : 2;
+const MAX_SETTINGS_ATTEMPTS = process.env.CI ? 4 : 3;
 
 // Outline serves the SPA shell with title "Outline" before the router
 // mounts the route component (which then sets the per-page title, e.g.
@@ -99,6 +100,14 @@ async function waitForSpaTitle(page: Page): Promise<string> {
 // mid-render, leaving the sidebar half-populated. Reload /settings —
 // the same instinct a human has when a page renders incompletely — and
 // retry up to MAX_SETTINGS_ATTEMPTS.
+//
+// We watch network responses during each attempt for a 429. If one is
+// observed, the inter-attempt backoff is longer (Outline's rate
+// limiter has a sliding ~5-10s window). If the failure is just an
+// incomplete render with no 429, a shorter backoff is enough. The
+// retry burst itself is what made the original retry loop counter-
+// productive — hammering /settings under an active rate limit just
+// kept us rate-limited.
 async function gotoSettingsPath(page: Page, path: string): Promise<void> {
   if (path === "/settings") {
     await page.goto(SETTINGS_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -107,23 +116,49 @@ async function gotoSettingsPath(page: Page, path: string): Promise<void> {
 
   const subLink = page.locator(`a[href="${path}"]`).first();
   let lastError: unknown;
-  for (let attempt = 1; attempt <= MAX_SETTINGS_ATTEMPTS; attempt++) {
-    await page.goto(SETTINGS_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
-    try {
-      await expect(subLink).toBeVisible({ timeout: 10_000 });
-      lastError = undefined;
-      break;
-    } catch (e) {
-      lastError = e;
-      if (attempt < MAX_SETTINGS_ATTEMPTS) {
-        // Brief settle before retrying when chunk/sidebar render was incomplete.
-        await page.waitForLoadState("domcontentloaded", { timeout: 3_000 }).catch(() => {});
+  let saw429Attempts = 0;
+
+  // Per-attempt 429 watch. Pacing-only use of timing — explicit
+  // rate-limit politeness, not a readiness escape hatch.
+  const onResponse = (resp: Response) => {
+    if (resp.status() === 429) saw429Attempts += 1;
+  };
+  page.on("response", onResponse);
+
+  try {
+    for (let attempt = 1; attempt <= MAX_SETTINGS_ATTEMPTS; attempt++) {
+      const before429Count = saw429Attempts;
+      await page.goto(SETTINGS_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+      try {
+        await expect(subLink).toBeVisible({ timeout: 10_000 });
+        lastError = undefined;
+        break;
+      } catch (e) {
+        lastError = e;
+        if (attempt < MAX_SETTINGS_ATTEMPTS) {
+          const saw429ThisAttempt = saw429Attempts > before429Count;
+          // Backoff: longer when 429 is confirmed (rate-limit is
+          // actively rejecting — Outline's window appears to be ~15s+),
+          // shorter when render just stalled. Pacing only — never use
+          // as a readiness wait.
+          const backoffMs = saw429ThisAttempt
+            ? 15_000 * attempt // 15s, 30s, 45s for genuine rate limit
+            : 1_500;           // ~1.5s when it's just incomplete render
+          await delay(backoffMs);
+        }
       }
     }
+  } finally {
+    page.off("response", onResponse);
   }
+
   if (lastError) {
     throw new Error(
-      `${path}: sub-nav link never appeared on /settings after ${MAX_SETTINGS_ATTEMPTS} attempts. Likely rate-limited (HTTP 429) on chunk loads.`
+      `${path}: sub-nav link never appeared on /settings after ${MAX_SETTINGS_ATTEMPTS} attempts. ` +
+        `429 responses observed across attempts: ${saw429Attempts}. ` +
+        (saw429Attempts > 0
+          ? "Outline rate-limited the chunk loads — increase backoff or stagger the test more."
+          : "No 429 seen — could be a slow render / selector drift rather than rate-limit.")
     );
   }
 
@@ -302,6 +337,11 @@ raw.describe("Outline — non-admin role split (NORMAL_USER)", () => {
 test.describe("Outline — admin (FOSS_USER) reaches every /settings page", () => {
   for (const path of ALL_PATHS) {
     test(`admin reaches ${path} with a real page title`, async ({ page }) => {
+      // Outline's per-route 429 backoff inside gotoSettingsPath can
+      // pace the suite at 15s + 30s + 45s = 90s in the worst case
+      // (3 backoffs across 4 attempts). Add headroom on top for goto
+      // + render. Default 30s would time out mid-backoff.
+      test.setTimeout(180_000);
       await gotoSettingsPath(page, path);
 
       await expect(page).toHaveURL(new RegExp(`https?://${escapeRegex(DOCS_HOST)}`));
