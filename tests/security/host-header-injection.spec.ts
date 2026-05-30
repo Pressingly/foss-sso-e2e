@@ -1,7 +1,7 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
 // @spec security-hardening#sso-entry-points-shall-ignore-spoofed-host-headers
 
-import { test, expect, request } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { MAIN_URL, AUTH_PROXY_DOMAIN, COOKIE_DOMAIN, APPS } from "../../constants";
 
 // Host-header injection at SSO entry points.
