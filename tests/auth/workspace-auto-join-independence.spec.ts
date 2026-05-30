@@ -3,7 +3,12 @@
 
 import { test, expect } from "../../fixtures";
 import { request, BrowserContext } from "@playwright/test";
-import { APP_URLS } from "../../constants";
+import {
+  APP_URLS,
+  OUTLINE_TEAM_ID,
+  PENPOT_TEAM_ID,
+  PLANE_WORKSPACE_ID,
+} from "../../constants";
 import { extractPenpotTransitField } from "../lib/penpot-transit";
 import { blockedAppsMessage } from "../lib/app-health-probes";
 
@@ -19,22 +24,39 @@ import { blockedAppsMessage } from "../lib/app-health-probes";
 //   AND the user's Plane membership has no effect on what Outline does
 //   AND vice-versa
 //
-// The behavioural signal we can observe from e2e: for the same logged-in
-// user, each app's `/me`-style endpoint reports its OWN workspace
-// identifier — a per-app UUID/slug that lives in that app's own DB.
-// If two apps reported the same identifier, that would prove a shared
-// backend (which would violate the independence invariant). Different
-// identifiers prove the auto-join made distinct DB writes per app.
+// HISTORY: an earlier shape of this test fetched each app's primary
+// workspace identifier (per-app UUID/PK) and asserted "no two apps
+// share an identifier." That was structurally vacuous — four
+// independent databases generating UUIDs will never collide regardless
+// of whether the contract holds, so the assertion did nothing. A real
+// regression that pointed Plane's middleware at Outline's workspace
+// store would not have been caught: Plane would still return Plane's
+// own UUID for whatever workspace it landed on.
 //
-// Twenty is omitted (same reason as identity-consistency.spec.ts):
-// its workspace data is behind a JWT-bearer endpoint, not the SSO
-// cookie. The 4 cookie-authed apps below are enough to prove the
-// no-shared-DB property — if any future regression introduces a
-// cross-app workspace sync, this 4-app probe will catch it.
+// CURRENT SHAPE: positive-correlation. For the same logged-in user, we
+// assert each app's primary workspace identifier MATCHES THE
+// BUNDLE-CONFIGURED VALUE the suite imports from `constants.ts`
+// (PLANE_WORKSPACE_ID, OUTLINE_TEAM_ID, PENPOT_TEAM_ID). These are the
+// per-app IDs the bundle's auto-join provisioned this user into. A
+// regression where:
+//
+//   - app A's middleware is misconfigured and lands the user in the
+//     wrong workspace (e.g. an orphan workspace from a prior tenant),
+//     OR
+//   - app A's storage backend is accidentally pointed at app B's data,
+//     OR
+//   - app A's auto-join is silently dropped and the user ends up in
+//     no workspace at all (probe throws or returns empty)
+//
+// is caught by the per-app equality assertion. SurfSense is omitted —
+// its `/users/me` returns a per-user PK, not a workspace identifier,
+// so there's no per-app-workspace value to correlate. SurfSense
+// workspace membership is covered by `tests/apps/surfsense-admin.spec.ts`.
 
 type WorkspaceProbe = {
   app: string;
   description: string;
+  expected: string;
   fetch: (ctx: BrowserContext, baseUrl: string) => Promise<string>;
 };
 
@@ -77,16 +99,16 @@ async function postJSON<T>(
   }
 }
 
-// Each probe returns the app's primary workspace/team identifier — the
-// per-app UUID or slug that the app's auto-join wrote into its own DB.
-// We don't normalise across apps: Outline uses team UUIDs, Plane uses
-// workspace slugs, Penpot uses team UUIDs, SurfSense uses search_space
-// UUIDs. The shape differences are the point — they prove each app
-// has its own workspace store.
+// Each probe returns the app's primary workspace identifier — the
+// per-app UUID the app's auto-join wrote into its own DB. We assert
+// that value matches the bundle-configured expected ID from
+// constants.ts, proving auto-join landed the user in the bundle's
+// designated workspace (not a leaked cross-app value).
 const PROBES: WorkspaceProbe[] = [
   {
     app: "PM",
     description: "Plane GET /api/users/me/settings/ → workspace.last_workspace_id",
+    expected: PLANE_WORKSPACE_ID,
     fetch: async (ctx, baseUrl) => {
       const ch = await cookieHeaderFor(ctx, baseUrl);
       const j = await getJSON<{ workspace: { last_workspace_id: string } }>(
@@ -99,6 +121,7 @@ const PROBES: WorkspaceProbe[] = [
   {
     app: "Outline",
     description: "Outline POST /api/auth.info → data.team.id",
+    expected: OUTLINE_TEAM_ID,
     fetch: async (ctx, baseUrl) => {
       const ch = await cookieHeaderFor(ctx, baseUrl);
       const j = await postJSON<{ data: { team: { id: string } } }>(
@@ -111,6 +134,7 @@ const PROBES: WorkspaceProbe[] = [
   {
     app: "Penpot",
     description: "Penpot GET /api/rpc/command/get-profile → ~:default-team-id",
+    expected: PENPOT_TEAM_ID,
     fetch: async (ctx, baseUrl) => {
       const ch = await cookieHeaderFor(ctx, baseUrl);
       const j = await getJSON<unknown>(ch, `${baseUrl}/api/rpc/command/get-profile`);
@@ -119,35 +143,21 @@ const PROBES: WorkspaceProbe[] = [
       return extractPenpotTransitField(j, "~:default-team-id");
     },
   },
-  {
-    app: "SurfSense",
-    description: "SurfSense GET /users/me → id (user record, not workspace, but per-app)",
-    fetch: async (ctx, baseUrl) => {
-      const ch = await cookieHeaderFor(ctx, baseUrl);
-      // SurfSense's workspace model is per-SearchSpace. The /users/me
-      // endpoint returns the user id, not a workspace; use that as the
-      // per-app identifier — if cross-app sync somehow assigned the same
-      // user PK across apps, this would coincidentally match another
-      // app's UUID (extremely unlikely with separate per-app DBs).
-      const j = await getJSON<{ id: string }>(ch, `${baseUrl}/users/me`);
-      return j.id;
-    },
-  },
 ];
 
 test.describe("workspace-auto-join — per-app independence", () => {
-  test("each app surfaces its own workspace identifier; none are shared across apps", async ({
+  test("each app's primary workspace matches the bundle-configured value (no cross-app leak)", async ({
     context,
     page,
     appHealth,
   }) => {
-    const blocked = blockedAppsMessage(appHealth, "PM", "Outline", "Penpot", "SurfSense");
+    const blocked = blockedAppsMessage(appHealth, "PM", "Outline", "Penpot");
     test.skip(!!blocked, blocked ?? "");
     test.setTimeout(120_000);
 
-    // Warm each app once so per-host cookies are in the jar — Penpot and
-    // SurfSense don't issue session cookies until the SPA has had a
-    // chance to do its first authenticated call.
+    // Warm each app once so per-host cookies are in the jar — Penpot
+    // doesn't issue a session cookie until the SPA has had a chance to
+    // do its first authenticated call.
     for (const probe of PROBES) {
       const baseUrl = APP_URLS[probe.app as keyof typeof APP_URLS];
       await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -159,35 +169,35 @@ test.describe("workspace-auto-join — per-app independence", () => {
         .toBe(new URL(baseUrl).hostname);
     }
 
-    const observed: { app: string; identifier: string }[] = [];
+    const mismatches: string[] = [];
     for (const probe of PROBES) {
       const baseUrl = APP_URLS[probe.app as keyof typeof APP_URLS];
-      const identifier = await probe.fetch(context, baseUrl);
+      const observed = await probe.fetch(context, baseUrl);
       expect(
-        identifier,
-        `${probe.app}: ${probe.description} returned empty/null — auto-join may not have completed (the property "auto-join SHALL run on every login" is the prerequisite for this independence check)`
+        observed,
+        `${probe.app}: ${probe.description} returned empty/null — auto-join may not have completed`,
       ).toBeTruthy();
-      observed.push({ app: probe.app, identifier });
+
+      if (observed !== probe.expected) {
+        mismatches.push(
+          `${probe.app}: expected ${probe.expected} (from constants.ts), got ${observed} ` +
+            `(via ${probe.description})`,
+        );
+      }
     }
 
-    // The load-bearing assertion: no two apps report the same
-    // identifier. If they did, that would prove a shared backend
-    // (workspace-sync service, shared DB, etc.) which violates the
-    // "auto-join SHALL NOT leak across apps" invariant.
-    const byIdentifier = new Map<string, string[]>();
-    for (const { app, identifier } of observed) {
-      if (!byIdentifier.has(identifier)) byIdentifier.set(identifier, []);
-      byIdentifier.get(identifier)!.push(app);
-    }
-    const collisions = [...byIdentifier.entries()]
-      .filter(([, apps]) => apps.length > 1)
-      .map(([id, apps]) => `${apps.join(" + ")} share identifier ${id}`);
-
+    // The load-bearing assertion: each app reports the bundle-configured
+    // workspace identifier. A mismatch indicates the user's auto-join
+    // landed them somewhere other than the bundle's designated workspace
+    // for this app — a regression in either the auto-join logic OR the
+    // app's storage backend pointing.
     expect(
-      collisions,
-      `Cross-app workspace identifier collision detected — at least two apps report the same per-app identifier, which would only be possible with a shared workspace backend. Observed:\n${observed
-        .map((o) => `  ${o.app}: ${o.identifier}`)
-        .join("\n")}\nCollisions:\n${collisions.join("\n")}`
+      mismatches,
+      `Per-app workspace identifier mismatch — at least one app reported a workspace ID ` +
+        `different from the bundle-configured expected value in constants.ts. ` +
+        `If the bundle deliberately re-provisioned a workspace, update the matching ` +
+        `*_ID / *_SLUG default in constants.ts to match.\n\n` +
+        mismatches.map((m) => `  - ${m}`).join("\n"),
     ).toEqual([]);
   });
 });
