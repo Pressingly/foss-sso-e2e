@@ -58,6 +58,10 @@ function newAttackerHost(): string {
   return `attacker-${randomBytes(6).toString("hex")}.invalid`;
 }
 
+function escapeRegExpLiteral(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 interface ProbeResult {
   status: number;
   location: string | undefined;
@@ -162,7 +166,7 @@ test.describe("Host header injection — SSO entry points MUST ignore spoofed Ho
       if (result.location !== undefined) {
         const isRelative = !/^https?:\/\//i.test(result.location);
         const allowedHostRegex = new RegExp(
-          `^https://[a-z0-9.-]*\\.?${COOKIE_DOMAIN.replace(/\./g, "\\.")}(/|$|\\?)`,
+          `^https://[a-z0-9.-]*\\.?${escapeRegExpLiteral(COOKIE_DOMAIN)}(/|$|\\?)`,
           "i",
         );
         const allowed = isRelative || allowedHostRegex.test(result.location);
