@@ -166,7 +166,7 @@ test.describe("Host header injection — SSO entry points MUST ignore spoofed Ho
       if (result.location !== undefined) {
         const isRelative = !/^https?:\/\//i.test(result.location);
         const allowedHostRegex = new RegExp(
-          `^https://[a-z0-9.-]*\\.?${escapeRegExpLiteral(COOKIE_DOMAIN)}(/|$|\\?)`,
+          `^https://(?:${escapeRegExpLiteral(COOKIE_DOMAIN)}|[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.${escapeRegExpLiteral(COOKIE_DOMAIN)})(/|$|\\?)`,
           "i",
         );
         const allowed = isRelative || allowedHostRegex.test(result.location);

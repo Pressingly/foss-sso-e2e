@@ -81,9 +81,9 @@ test.describe("JWT algorithm confusion — forged bearers must be rejected", () 
         // Non-2xx proves the token was rejected. (Any earlier `>= 200`
         // shape here was a tautology — every HTTP status is ≥ 200.)
         expect(
-          status,
+          status < 200 || status >= 300,
           `Outline accepted an alg=none bearer with HTTP ${status} — token MUST be rejected with a non-2xx status`,
-        ).not.toBe(200);
+        ).toBe(true);
       }
     } finally {
       await ctx.dispose();
@@ -123,9 +123,9 @@ test.describe("JWT algorithm confusion — forged bearers must be rejected", () 
         // Non-2xx proves the token was rejected. (Earlier `>= 200`
         // shape here was a tautology — every HTTP status is ≥ 200.)
         expect(
-          status,
+          status < 200 || status >= 300,
           `Outline accepted an alg=HS256 bearer with HTTP ${status} — token MUST be rejected with a non-2xx status`,
-        ).not.toBe(200);
+        ).toBe(true);
       }
     } finally {
       await ctx.dispose();

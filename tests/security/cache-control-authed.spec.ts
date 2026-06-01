@@ -110,7 +110,7 @@ test.describe("Cache-Control — portal authenticated HTML MUST NOT be shared-ca
     // foss-server-bundle#83 (nginx config — same place that already
     // sets HSTS/XFO/CSP on the portal response). Remove `.fixme`
     // once that issue ships.
-    test.fixme(`${target.name}: HTML response forbids shared-cache storage`, async ({
+    test(`${target.name}: HTML response forbids shared-cache storage`, async ({
       page,
     }) => {
       test.setTimeout(60_000);

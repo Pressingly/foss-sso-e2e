@@ -59,17 +59,15 @@ function evaluateFrameProtection(
     const match = cspLower.match(/frame-ancestors([^;]*)/);
     if (match) {
       const values = (match[1] ?? "").trim();
-      // Forbidden: `*` wildcard. Anything else (`'none'`, `'self'`,
-      // explicit host allowlist) effectively blocks cross-origin
-      // framing from arbitrary origins.
-      if (!/(^|\s)\*(\s|$)/.test(values)) {
+      // Only strict values are acceptable for this contract.
+      if (values === "'none'" || values === "'self'") {
         return { ok: true, reason: `Content-Security-Policy frame-ancestors: ${values}` };
       }
       return {
         ok: false,
         reason:
-          `Content-Security-Policy frame-ancestors allows wildcard: "${values}" — ` +
-          `cross-origin framing is permitted. Remove the wildcard or set frame-ancestors 'none'.`,
+          `Content-Security-Policy frame-ancestors is too permissive: "${values}" — ` +
+          `expected 'none' or 'self'.`,
       };
     }
   }

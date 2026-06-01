@@ -114,12 +114,8 @@ test.describe("Cookie / header bomb — SSO chain MUST fail closed, not 5xx", ()
           throw err;
         }
 
-        // The contract: NOT 5xx. 4xx (400 / 413 / 431) is correct.
-        // 2xx is unexpected (the bomb cookie isn't a valid SSO
-        // cookie so we shouldn't be passing auth) but it's not a
-        // failure of THIS contract — it'd be caught by other tests.
-        // 3xx (redirect to IDP) is the normal happy-path response
-        // for an unauth'd visit and is fine.
+        // The contract: 4xx (400 / 413 / 431). Connection-close is
+        // handled in the catch path above.
         expect(
           status,
           `${target.name}: oversized Cookie produced HTTP ${status}. ` +
@@ -129,7 +125,8 @@ test.describe("Cookie / header bomb — SSO chain MUST fail closed, not 5xx", ()
             `same-browser DoS for the victim, worst case authz-bypass via ` +
             `header truncation. Verify Nginx / Traefik / oauth2-proxy header ` +
             `limits and that they return 431 or 400 on overflow.`,
-        ).toBeLessThan(500);
+        ).toBeGreaterThanOrEqual(400);
+        expect(status).toBeLessThan(500);
       } finally {
         await ctx.dispose();
       }
