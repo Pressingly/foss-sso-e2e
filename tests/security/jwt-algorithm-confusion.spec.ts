@@ -78,8 +78,12 @@ test.describe("JWT algorithm confusion — forged bearers must be rejected", () 
           `Outline accepted an alg=none bearer — the forged identity is reflected in the response. Status=${status}, body: ${body.slice(0, 400)}`
         ).toBe(false);
       } else {
-        // Any non-2xx is fine — proves the token was rejected.
-        expect(status, `Outline /api/auth.info status for alg=none bearer`).toBeGreaterThanOrEqual(200);
+        // Non-2xx proves the token was rejected. (Any earlier `>= 200`
+        // shape here was a tautology — every HTTP status is ≥ 200.)
+        expect(
+          status < 200 || status >= 300,
+          `Outline accepted an alg=none bearer with HTTP ${status} — token MUST be rejected with a non-2xx status`,
+        ).toBe(true);
       }
     } finally {
       await ctx.dispose();
@@ -116,7 +120,12 @@ test.describe("JWT algorithm confusion — forged bearers must be rejected", () 
           `Outline accepted an alg=HS256 bearer with arbitrary signature — algorithm confusion is exploitable. Status=${status}, body: ${body.slice(0, 400)}`
         ).toBe(false);
       } else {
-        expect(status, `Outline /api/auth.info status for alg=HS256 bearer`).toBeGreaterThanOrEqual(200);
+        // Non-2xx proves the token was rejected. (Earlier `>= 200`
+        // shape here was a tautology — every HTTP status is ≥ 200.)
+        expect(
+          status < 200 || status >= 300,
+          `Outline accepted an alg=HS256 bearer with HTTP ${status} — token MUST be rejected with a non-2xx status`,
+        ).toBe(true);
       }
     } finally {
       await ctx.dispose();
