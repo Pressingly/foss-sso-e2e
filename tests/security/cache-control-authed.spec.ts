@@ -39,12 +39,13 @@ import { MAIN_URL } from "../../constants";
 //                                          real upstream issue
 //     - Twenty:    `public, max-age=0`  (public allows shared store)
 //
-//   SurfSense's value in particular is concerning, but it's an
-//   upstream-owned response — the bundle can't override it without
-//   regressing the SPA. Per-app Cache-Control fixes belong upstream
-//   in each app's response middleware. This test pins the BUNDLE'S
-//   responsibility (portal HTML); the per-app state above is the
-//   audit log, not the contract.
+//   SurfSense's value in particular is concerning — tracked at
+//   foss-server-bundle#84 (upstream patch or Traefik response-header
+//   override). It's an upstream-owned response — the bundle can't
+//   override it cleanly without regressing the SPA. Per-app
+//   Cache-Control fixes belong upstream in each app's response
+//   middleware. This test pins the BUNDLE'S responsibility (portal
+//   HTML); the per-app state above is the audit log, not the contract.
 //
 // Static assets (JS chunks, fonts, images) are deliberately out of
 // scope — those SHOULD be cacheable; the regression we guard is "the
@@ -105,9 +106,10 @@ test.describe("Cache-Control — portal authenticated HTML MUST NOT be shared-ca
     // `private, no-cache`) to the portal HTML response. As of
     // 2026-06-01 the bundle ships the portal landing without a
     // Cache-Control header at all — so this assertion documents the
-    // contract but is dormant in CI. Remove `.fixme` once the bundle
-    // patch lands (foss-server-bundle nginx config — same place that
-    // already sets HSTS/XFO/CSP on the portal response).
+    // contract but is dormant in CI. Tracked at
+    // foss-server-bundle#83 (nginx config — same place that already
+    // sets HSTS/XFO/CSP on the portal response). Remove `.fixme`
+    // once that issue ships.
     test.fixme(`${target.name}: HTML response forbids shared-cache storage`, async ({
       page,
     }) => {
