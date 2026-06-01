@@ -230,6 +230,84 @@ forced `/login` bounce); the requirement is "best effort
 preservation" with documented per-app exceptions, not strict
 equality.
 
+### Requirement: platform hosts SHALL refuse rendering inside cross-origin frames
+
+Authenticated responses on every platform host (portal + 5 apps)
+MUST refuse to render when embedded by a cross-origin parent. This
+is the load-bearing clickjacking and UI-spoofing defence — header
+presence (`X-Frame-Options`, CSP `frame-ancestors`) is necessary
+but not sufficient because middleware drift can attach headers to
+the 302-to-IDP without attaching them to the actual app response.
+
+The contract is observable browser-side: from a cross-origin parent
+(opaque origin), the parent MUST NOT be able to read the iframe's
+`contentDocument` or `contentWindow.location.href` for any platform
+host. A frame that the browser blanks (XFO bite) and a frame that
+renders but is cross-origin-isolated both satisfy the contract; a
+frame whose DOM the parent can read does not.
+
+This is distinct from "the canonical security headers are present"
+(covered above) — header-presence is a static check; this is the
+behavioural check that proves the headers actually fire on the
+authed response path.
+
+### Requirement: authenticated responses SHALL forbid shared-cache storage
+
+The HTML responses served by the portal and each protected app to an
+authenticated user MUST set `Cache-Control` to a value that prevents
+shared-cache storage. Acceptable values:
+
+- `no-store` (preferred — nothing is cached anywhere), or
+- `private, no-cache` (browser-only cache, forces revalidation), or
+- `private, max-age=0` (equivalent)
+
+Bare `public`, missing header, or any directive that allows a
+shared cache (corporate forward proxy, CDN, kiosk shared browser)
+to store the response is forbidden. The threat is same-network
+session-bleed: user A's authenticated HTML being served from a
+shared cache to user B on the same network. Static assets (JS,
+CSS, fonts, images) are out of scope — those SHOULD be cacheable.
+
+### Requirement: SSO entry points SHALL ignore spoofed Host headers
+
+The SSO chain entry points (portal landing, `oauth2-proxy`
+`/oauth2/sign_in` on every host binding) MUST build redirect URLs,
+Set-Cookie `Domain=` attributes, and response-body absolute URLs
+from configured platform domain values — NOT from the inbound
+`Host` request header.
+
+Specifically, a request to a legitimate entry point with
+`Host: attacker.example` MUST NOT:
+
+- Emit a `Location:` header containing `attacker.example`
+- Emit a response body that echoes `attacker.example` as part of
+  any URL (meta refresh, form action, JS string, …)
+- Emit a `Set-Cookie: Domain=attacker.example`
+- Return 5xx (parse-failure DoS is its own bug)
+
+This pins the OIDC variant of password-reset-poisoning: the chain
+MUST NOT be tricked into emitting attacker-controlled URLs that the
+victim's browser would then follow as part of the legitimate-looking
+authorisation handshake.
+
+### Requirement: SSO chain SHALL fail closed under oversized request headers
+
+Every SSO entry point — portal landing, `oauth2-proxy/sign_in` on
+every host binding — MUST respond with a clean 4xx (typically 431
+"Request Header Fields Too Large", or 400) or close the connection
+at the transport layer when a request arrives with an oversized
+`Cookie:` (or other) header. A 5xx response is forbidden.
+
+The specific byte limit is the bundle's call (8KB, 16KB, 32KB are
+all defensible). What this requirement pins is the failure SHAPE:
+
+- 4xx / connection-close: acceptable — fail-closed
+- 5xx: forbidden — indicates a parser crash or buffer overflow
+  that an attacker can trigger by inflating cookies on the
+  configured cookie-domain (via subdomain XSS, sibling-domain
+  cookie write, etc.), which becomes a same-browser DoS for the
+  victim, worst case an authz bypass via silent header truncation
+
 ## References
 
 - `oauth2-proxy.cfg` (in foss-server-bundle) — cookie attribute config

@@ -1,5 +1,6 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
-// @spec logout-flow#per-app-logout-shall-be-navigation-only
+// @spec logout-flow#portal-logout-all-shall-clear-only-the-oauth2-proxy-cookie
+// @spec logout-flow#stale-app-native-sessions-shall-be-reaped-on-next-request-not-eagerly
 
 import { test, expect } from "../../fixtures";
 import { BrowserContext } from "@playwright/test";

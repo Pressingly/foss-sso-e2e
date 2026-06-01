@@ -62,7 +62,7 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 - `auto-join role SHALL be the app's regular-member role, not Admin or Guest` — **Partially covered** — `tests/apps/{outline,twenty,penpot,surfsense,pm}-admin.spec.ts` each assert NORMAL_USER (the auto-joined identity) lands without admin/owner rights on the respective app. Tags now in place. A direct DB-role probe is still future work.
 - `auto-join SHALL mark onboarding complete on the user profile` — **Genuine test gap** — assert profile shows onboarding skipped.
 - `per-app workspace model SHALL be documented in workspaces.md` — **Policy/doc** — doc requirement; verified by file existence in `awais786/sso-rules-moneta`.
-- `auto-join SHALL NOT leak across apps` — **Covered** — `tests/auth/workspace-auto-join-independence.spec.ts` probes each app's own workspace-id endpoint and asserts no two apps share an identifier (would only be possible with a shared backend).
+- `auto-join SHALL NOT leak across apps` — **Covered** — `tests/auth/workspace-auto-join-independence.spec.ts` probes each app's primary-workspace endpoint and asserts the returned identifier matches the bundle-configured value in `constants.ts` (`PLANE_WORKSPACE_ID`, `OUTLINE_TEAM_ID`, `PENPOT_TEAM_ID`). A regression where app A's storage backend gets pointed at app B's workspace store would surface as a mismatch. SurfSense omitted — its `/users/me` returns a per-user PK, not a workspace identifier; SurfSense membership is covered by `tests/apps/surfsense-admin.spec.ts`. (Prior shape — "no two apps share an identifier" — was vacuous against 4 independent UUID generators and is replaced with this positive-correlation shape.)
 
 ---
 
