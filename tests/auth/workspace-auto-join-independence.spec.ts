@@ -48,10 +48,22 @@ import { blockedAppsMessage } from "../lib/app-health-probes";
 //   - app A's auto-join is silently dropped and the user ends up in
 //     no workspace at all (probe throws or returns empty)
 //
-// is caught by the per-app equality assertion. SurfSense is omitted —
-// its `/users/me` returns a per-user PK, not a workspace identifier,
-// so there's no per-app-workspace value to correlate. SurfSense
-// workspace membership is covered by `tests/apps/surfsense-admin.spec.ts`.
+// is caught by the per-app equality assertion.
+//
+// TWO APPS OMITTED, FOR DIFFERENT REASONS:
+//
+//   - Twenty — its workspace data sits behind a JWT-Bearer endpoint
+//     (`/rest/*`), not the SSO cookie. The cookie-based probes here
+//     can't reach it. Same omission as `identity-consistency.spec.ts`.
+//     Twenty's identity is still gated by the same oauth2-proxy that
+//     feeds the cookie-authed four, so the auto-join independence
+//     property holds transitively — what's lacking is a black-box
+//     probe to confirm it.
+//
+//   - SurfSense — its `/users/me` returns a per-user PK, not a
+//     workspace identifier, so there's no per-app-workspace value to
+//     correlate. SurfSense workspace membership is covered by
+//     `tests/apps/surfsense-admin.spec.ts`.
 
 type WorkspaceProbe = {
   app: string;
