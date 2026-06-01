@@ -139,8 +139,11 @@ const PROBES: WorkspaceProbe[] = [
       const ch = await cookieHeaderFor(ctx, baseUrl);
       const j = await getJSON<unknown>(ch, `${baseUrl}/api/rpc/command/get-profile`);
       // The default-team-id field is the per-profile primary team. It
-      // arrives as a Transit-tagged UUID, e.g. "~uc16a7502-...".
-      return extractPenpotTransitField(j, "~:default-team-id");
+      // arrives as a Transit-tagged UUID, e.g. "~uc16a7502-...". Strip
+      // the `~u` Transit-uuid tag so the value compares against the
+      // bare UUID in constants.ts.
+      const raw = extractPenpotTransitField(j, "~:default-team-id");
+      return raw.replace(/^~u/, "");
     },
   },
 ];
