@@ -87,6 +87,23 @@ function probe(url: string, spoofedHost: string): Promise<ProbeResult> {
       },
       (res) => {
         let body = "";
+        let finished = false;
+        const finish = () => {
+          if (finished) {
+            return;
+          }
+          finished = true;
+          resolve({
+            status: res.statusCode ?? 0,
+            location: typeof res.headers.location === "string"
+              ? res.headers.location
+              : undefined,
+            body,
+            setCookies: Array.isArray(res.headers["set-cookie"])
+              ? res.headers["set-cookie"]
+              : [],
+          });
+        };
         res.on("data", (chunk) => {
           body += chunk.toString("utf8");
           // Cap the body read — Location-header attacks don't need
@@ -97,30 +114,8 @@ function probe(url: string, spoofedHost: string): Promise<ProbeResult> {
             res.destroy();
           }
         });
-        res.on("end", () =>
-          resolve({
-            status: res.statusCode ?? 0,
-            location: typeof res.headers.location === "string"
-              ? res.headers.location
-              : undefined,
-            body,
-            setCookies: Array.isArray(res.headers["set-cookie"])
-              ? res.headers["set-cookie"]
-              : [],
-          }),
-        );
-        res.on("close", () =>
-          resolve({
-            status: res.statusCode ?? 0,
-            location: typeof res.headers.location === "string"
-              ? res.headers.location
-              : undefined,
-            body,
-            setCookies: Array.isArray(res.headers["set-cookie"])
-              ? res.headers["set-cookie"]
-              : [],
-          }),
-        );
+        res.once("end", finish);
+        res.once("close", finish);
       },
     );
     req.on("error", reject);
