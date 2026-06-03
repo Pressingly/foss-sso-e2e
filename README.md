@@ -33,8 +33,9 @@ Adding a test without a requirement → CI fails. Adding a requirement
 without a test → CI fails. Drift requires explicit human acceptance in
 both directions.
 
-**Today: 84 requirements, 0 missing** — 52 from the SSO chain openspec,
-32 from per-app admin + workspace-isolation + security-hardening skills.
+**Today: 88 requirements, 0 missing** — 52 from the SSO chain openspec,
+36 from per-app admin + workspace-isolation + security-hardening skills.
+Run `make audit` for live counts.
 
 When CI is red, [`TRIAGE.md`](./TRIAGE.md) is the 2-minute "failure
 pattern → cause → action" runbook.
