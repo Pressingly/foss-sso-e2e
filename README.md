@@ -33,6 +33,12 @@ Adding a test without a requirement → CI fails. Adding a requirement
 without a test → CI fails. Drift requires explicit human acceptance in
 both directions.
 
+The audit gates **presence**, not **shape**. Whether a test's assertion
+actually fails when the contract breaks is a human judgement call. Use
+the [Spec & Test Shape Review Checklist](./docs/spec-review-checklist.md)
+before opening any PR that edits a `### Requirement:` block or touches
+an `@spec`-tagged test.
+
 **Today: 88 requirements, 0 missing** — 52 from the SSO chain openspec,
 36 from per-app admin + workspace-isolation + security-hardening skills.
 Run `make audit` for live counts.

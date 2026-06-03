@@ -68,6 +68,17 @@ structure and how to update it.
     OR add a new `### Requirement:` line to the matching SKILL.md /
     spec.md, OR (rarely) extend `UNTAGGED_ALLOWLIST` with a one-line
     rationale. CI rejects the PR otherwise.
+  - **Shape correctness is not in the gate.** The audit checks
+    presence (every requirement has a test, every test has a
+    requirement). It does NOT check that the test's assertion
+    actually fails when the contract breaks. Four shape bugs have
+    shipped through the gate in this repo (vacuous assertion,
+    tautology, wrong tag, over-tight range). Before opening any PR
+    that touches `vendor/openspec/specs/`,
+    `vendor/openspec/skills/`, or an `@spec`-tagged test, walk the
+    checklist in [`docs/spec-review-checklist.md`](./docs/spec-review-checklist.md).
+    Reviewers should walk it out loud in the PR comments — silent
+    approval is how shape bugs slip through.
 - **Tests behave like humans.** No cookie/storage mocking shortcuts.
   Flake fixes mirror human pacing (real clicks, locator state waits over
   `waitForTimeout`).
