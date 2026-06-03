@@ -34,8 +34,11 @@ typecheck: ## Run TypeScript type-check
 audit: ## Run the spec-coverage audit (needs SPEC_DIR or SPEC_REPO_TOKEN)
 	bash scripts/check-spec-coverage.sh
 
-pre-commit: typecheck audit ## Run typecheck + audit before pushing. Add a fast test subset locally if useful.
-	@echo "✓ typecheck + spec-coverage audit clean"
+audit-paths: ## Audit doc cross-references — every relative file path in CLAUDE/README/skills/TRIAGE/docs must resolve
+	bash scripts/check-doc-paths.sh
+
+pre-commit: typecheck audit audit-paths ## Run typecheck + audits before pushing. Add a fast test subset locally if useful.
+	@echo "✓ typecheck + spec-coverage + doc-path audits clean"
 
 test: ## Run full test suite
 	@# Guard against the common footgun: someone runs `make test ID=FOSSSMBBUN-112 FORCE=1`

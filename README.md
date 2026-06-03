@@ -290,7 +290,7 @@ tests/
 `FOSS_BASE_URL`.
 `skills.md` — local invariant contract (what every app must satisfy).
 [vendored openspec](./vendor/openspec/) — canonical edge-layer +
-per-app rules organised by capability spec; the `security/` and
+per-app rules organised by capability spec; the `tests/security/` and
 `identity-consistency` tests verify these on the live deployment.
 
 ## Auth architecture
