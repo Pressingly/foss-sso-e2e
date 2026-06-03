@@ -1,0 +1,38 @@
+name: Doc-path audit
+
+# Verifies every relative file-path reference in CLAUDE.md, README.md,
+# skills.md, TRIAGE.md, TESTS.md, and docs/*.md points at a file that
+# actually exists in the repo.
+#
+# Failure mode this catches: a file gets renamed, moved, or archived,
+# and a prose reference somewhere in the doc set still points at the
+# old location. The bidirectional spec-coverage audit handles drift for
+# tests ↔ specs; this one handles drift for prose ↔ files.
+#
+# Same lightweight shape as spec-coverage.yml — pure-bash script, no
+# network, no node setup.
+
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+      - 'scripts/check-doc-paths.sh'
+      - '.github/workflows/doc-path-audit.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doc-path-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run doc-path audit
+        run: bash scripts/check-doc-paths.sh

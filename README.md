@@ -1,7 +1,8 @@
 # FOSS E2E — Playwright Test Suite
 
-End-to-end tests for the FOSS platform. See **[`TESTS.md`](./TESTS.md)** for
-a top-to-bottom catalog of every test in the suite. Highlights: SSO chain,
+End-to-end tests for the FOSS platform. See
+**[`docs/spec-coverage.md`](./docs/spec-coverage.md)** for the
+requirement-by-requirement audit table. Highlights: SSO chain,
 multi-app session sharing, cookie expiry bounds, session lifecycle
 (logout / invalidation / replay / deletion), per-app link coverage, the
 Plane god-mode admin escape hatch, Outline's admin `/settings/*` SSO-gating
@@ -296,7 +297,7 @@ tests/
 `FOSS_BASE_URL`.
 `skills.md` — local invariant contract (what every app must satisfy).
 [vendored openspec](./vendor/openspec/) — canonical edge-layer +
-per-app rules organised by capability spec; the `security/` and
+per-app rules organised by capability spec; the `tests/security/` and
 `identity-consistency` tests verify these on the live deployment.
 
 ## Auth architecture
