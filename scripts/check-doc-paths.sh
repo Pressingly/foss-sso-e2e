@@ -136,8 +136,10 @@ extract_candidates() {
       n = 0
       while (match(rest, /`[^`]+`/)) {
         token = substr(rest, RSTART+1, RLENGTH-2)
-        # path-shaped: contains a slash and (ends in .ext or ends in /)
-        if (token ~ /\// && (token ~ /\.(md|ts|tsx|js|json|sh|yml|yaml|cfg|env|sql|py|nginx|conf|md|ipynb)$/ || token ~ /\/$/)) {
+        # path-shaped: contains a slash, has no whitespace (rules out
+        # shell commands like `git log -- tests/` and prose phrases),
+        # and either ends in .ext or ends in / (directory).
+        if (token ~ /\// && token !~ /[[:space:]]/ && (token ~ /\.(md|ts|tsx|js|json|sh|yml|yaml|cfg|env|sql|py|nginx|conf|md|ipynb)$/ || token ~ /\/$/)) {
           print line "\t" token
         }
         rest = substr(rest, RSTART + RLENGTH)
