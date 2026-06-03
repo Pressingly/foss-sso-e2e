@@ -142,6 +142,14 @@ be redirected to the IDP / auth wall. Twenty's admin URLs are not
 in the ForwardAuth bypass list — there is no path that admits the
 request without a valid `_oauth2_proxy` cookie.
 
+#### Scenario: Cold visit to /settings/admin-panel bounces to auth
+
+- **GIVEN** a fresh browser context with no `_oauth2_proxy` cookie
+- **WHEN** the context navigates to
+  `https://twenty.${PLATFORM_DOMAIN}/settings/admin-panel`
+- **THEN** the response chain ends at an `isAuthWall` host
+- **AND** the Twenty SPA shell does NOT progress past the auth bounce
+
 ### Requirement: non-admin SHALL NOT see admin-panel UI
 
 An SSO-authenticated user with `User.canAccessFullAdminPanel = false`
@@ -151,6 +159,18 @@ Admin Panel headings). The user remains on Twenty's host (not bounced
 to the IDP) but the AdminPanelGuard either redirects them or refuses
 to render the admin surface.
 
+#### Scenario: Non-admin lands on Twenty's host but no admin markers render
+
+- **GIVEN** an SSO-authenticated user (`NORMAL_USER`) with
+  `User.canAccessFullAdminPanel = false`
+- **WHEN** the user navigates to `/settings/admin-panel`
+- **THEN** the page settles on the Twenty host (no IDP bounce)
+- **AND** the count of admin-marker locators visible on the page is
+  zero — for the markers Health Status, Feature Flags, Config
+  Variables, AI Models, Admin Panel
+- **AND** non-admin paths on the same host (e.g. `/settings/profile`)
+  continue to render normally for the same user
+
 ### Requirement: instance admin SHALL reach /settings/admin-panel
 
 A user with `User.canAccessFullAdminPanel = true` and a valid SSO
@@ -159,6 +179,20 @@ rendered. Either at least one admin marker (Health Status, Feature
 Flags, etc.) is visible OR the `/admin-panel-graphql-api` endpoint
 returned a 2xx/3xx response during the page load — both are
 acceptable signals that AdminPanelGuard admitted the request.
+
+#### Scenario: Admin reaches /settings/admin-panel and the guard admits
+
+- **GIVEN** an SSO-authenticated user (`FOSS_USER`) with
+  `User.canAccessFullAdminPanel = true`
+- **WHEN** the user navigates to `/settings/admin-panel`
+- **THEN** AT LEAST ONE of the following is true:
+  - At least one admin-panel marker locator (Health Status, Feature
+    Flags, Config Variables, AI Models, or an Admin Panel heading)
+    is visible on the page, OR
+  - The `/admin-panel-graphql-api` endpoint returned a non-error
+    response (2xx or 3xx) during the page load
+- **AND** the page does NOT bounce off-host or render an
+  AdminPanelGuard-refused fallback
 
 ## References
 

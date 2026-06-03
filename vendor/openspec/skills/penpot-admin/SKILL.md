@@ -177,6 +177,14 @@ Cold contexts (no SSO cookie) hitting any admin team URL
 MUST be redirected to the IDP / auth wall. Penpot's team admin
 pages are not in the ForwardAuth bypass list.
 
+#### Scenario: Cold visit to a team admin URL bounces to auth
+
+- **GIVEN** a fresh browser context with no `_oauth2_proxy` cookie
+- **WHEN** the context navigates to
+  `https://design.${PLATFORM_DOMAIN}/#/dashboard/members?team-id=<team-uuid>`
+- **THEN** the response chain ends at an `isAuthWall` host
+- **AND** the Penpot dashboard does NOT render the members table
+
 ### Requirement: non-admin SHALL NOT see Invite controls
 
 An SSO-authenticated user with team role `Editor` (or below) on a
@@ -184,6 +192,18 @@ team they navigate to MUST NOT see the "Invite people" button on
 `/#/dashboard/invitations?team-id=<team>`. The user lands on the
 host (not bounced to the IDP) and the page renders, but the
 admin-only invite control is absent.
+
+#### Scenario: Editor sees Invite-page chrome but no Invite button
+
+- **GIVEN** an SSO-authenticated user with `team_profile_rel.is_owner = false`
+  AND `is_admin = false` on the target team
+- **WHEN** the user navigates to
+  `/#/dashboard/invitations?team-id=<team-uuid>`
+- **THEN** the page stays on the Penpot host (no IDP bounce)
+- **AND** a `getByRole("button", { name: /invite people/i })` locator
+  resolves to zero matches
+- **AND** the same user's profile page (`/#/settings/profile`) renders
+  normally — distinguishing "admin-only control hidden" from "auth chain broken"
 
 ### Requirement: team Owner SHALL see Invite + role combobox
 
@@ -196,6 +216,21 @@ admin-level controls, UI renders them).
 
 Penpot deliberately hides the self-row role dropdown — the Owner
 sees the combobox next to OTHER members, not themselves.
+
+#### Scenario: Owner sees Invite button + role combobox on other members
+
+- **GIVEN** an SSO-authenticated user with `team_profile_rel.is_owner = true`
+  on the target team
+- **AND** the team has at least one other member besides the Owner
+- **WHEN** the Owner navigates to
+  `/#/dashboard/invitations?team-id=<team-uuid>`
+- **THEN** the "Invite people" button is visible
+- **AND** when the Owner navigates to
+  `/#/dashboard/members?team-id=<team-uuid>`
+- **THEN** a role-change combobox is visible next to at least one
+  other-member row
+- **AND** no role-change combobox is visible next to the Owner's own row
+  (Penpot's deliberate self-row protection)
 
 ## References
 

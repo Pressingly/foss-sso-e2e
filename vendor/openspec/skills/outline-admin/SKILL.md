@@ -108,6 +108,13 @@ This is a defense-in-depth check on top of the global SSO chain: it
 guards against a regression where an `/settings/*` route gets
 accidentally moved into the bypass-routed router class.
 
+#### Scenario: Cold visit to an admin /settings path bounces to auth
+
+- **GIVEN** a fresh browser context with no `_oauth2_proxy` cookie
+- **WHEN** the context navigates to `https://docs.${PLATFORM_DOMAIN}/settings/people`
+- **THEN** the response chain ends at an `isAuthWall` host (oauth2-proxy `/oauth2/sign_in` OR an IDP host)
+- **AND** the Outline app shell does NOT render
+
 ### Requirement: workspace admin SHALL reach every /settings page
 
 A user with `User.role = "admin"` and a valid SSO session for that
@@ -119,6 +126,17 @@ normal page chrome — specifically, a real document title (not a 404,
   the route's role check,
 - the per-app session was bootstrapped with the `Admin` role and
   not silently downgraded (e.g. by `team.defaultUserRole` mismatch).
+
+#### Scenario: Admin visits each /settings page and sees a real title
+
+- **GIVEN** an SSO-authenticated user whose Outline `User.role = "admin"`
+- **AND** that user is on their own team (where the auto-admin path applies)
+- **WHEN** the user navigates to each `/settings/*` path in turn
+  (including admin-gated paths like `/settings/details`,
+  `/settings/integrations`, `/settings/security`)
+- **THEN** every page's document title matches the per-route Outline title pattern
+- **AND** no page title contains `/not found/i` or `/404/i`
+- **AND** no page settles on an empty / module-failed SPA shell
 
 ### Requirement: non-admin SHALL NOT reach admin-only /settings pages
 
@@ -135,6 +153,19 @@ hiding would leave the API surface open to a determined non-admin.
 Common paths (e.g. `/settings/profile`) MUST remain reachable for
 the same non-admin user — this distinguishes "admin-only" from
 "broken auth chain."
+
+#### Scenario: Non-admin is gated from admin-only /settings paths but reaches common ones
+
+- **GIVEN** an SSO-authenticated user (`NORMAL_USER`) whose Outline `User.role != "admin"`
+- **WHEN** the user navigates to an admin-only path (e.g. `/settings/details`)
+- **THEN** the page MUST NOT render the admin chrome —
+  any of: a non-admin landing redirect, a "Not Found" body,
+  OR an SPA shell that never progresses past loading
+- **AND** when the same user navigates to a common path
+  (e.g. `/settings/profile`), the page renders normally
+- **AND** when the same user issues a direct API call to an
+  admin-only `/api/*` route, the response is a server-side denial
+  (not a 200 with admin data)
 
 ## References
 
