@@ -47,7 +47,6 @@ DOC_FILES=(
   "$REPO_ROOT/README.md"
   "$REPO_ROOT/skills.md"
   "$REPO_ROOT/TRIAGE.md"
-  "$REPO_ROOT/TESTS.md"
 )
 # Include every CURRENT .md under docs/. The archive is excluded —
 # its contents are time-bound snapshots that reference paths as they

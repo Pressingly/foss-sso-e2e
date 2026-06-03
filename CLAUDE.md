@@ -18,7 +18,7 @@ enforced, …) not a single product. Apps are upstream; we don't own their UI.
 2. [`docs/spec-coverage.md`](./docs/spec-coverage.md) — audit table: which test pins which requirement
 3. [`docs/spec-coverage-deferred.md`](./docs/spec-coverage-deferred.md) — gap pile + categories
 4. [`skills.md`](./skills.md) — findings (F1–F11), link-coverage rules, per-app admin gating narrative, adding-a-new-app guide, bug-staging workflow
-5. [`TESTS.md`](./TESTS.md) — per-test catalog (hand-maintained, may lag — `git log -- tests/` is the truth)
+5. To answer "what does test X do?" — read the test file's head comment + `@spec` tag, OR run `grep -nA1 "// @spec" tests/` for the full inventory. The retired per-test catalog (`TESTS.md`) was hand-maintained and went stale; it's archived at `docs/archive/TESTS.md` for provenance.
 
 When CI is red, [`TRIAGE.md`](./TRIAGE.md) is the 2-minute "what is
 this and what do I do" runbook — failure pattern → cause → action.
