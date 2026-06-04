@@ -21,7 +21,6 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 ## oauth2-proxy-gateway
 
 - `gateway SHALL use OIDC Discovery against the Cognito issuer` — **Infra-only** — bundle's `audit-sso.sh` greps for `OIDC_ISSUER_URL` config; behavioural verification would require breaking discovery to confirm.
-- `gateway SHALL use a redis-backed session store` — **Genuine test gap** — could be inferred by writing > 4KB worth of JWT into the session and asserting cookies stay small; not yet written.
 - `gateway SHALL pass access token to downstream apps when requested` — **Needs infra access** — requires `pass_access_token = true` config and a downstream endpoint that echoes the token; not exposed in current bundle.
 - `gateway SHALL use the configurable identity claim` — **Infra-only** — config-level.
 - `single shared callback URL` — **Infra-only** — Traefik config.
