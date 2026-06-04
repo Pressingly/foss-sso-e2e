@@ -43,9 +43,9 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 ## cognito-claim-mapping
 
 - `identity claim SHALL be configurable when email is unreliable` — **Partially covered** — `tests/auth/email-domain-consistency.spec.ts` proves cross-app `DEFAULT_EMAIL_DOMAIN` agreement (the load-bearing operational invariant); testing the *configurability* axis directly is infra-only.
-- `claim mapping SHALL be the same across the cookie flow and the JWT-bearer flow` — **Genuine test gap** — Outline exposes a JWT-bearer endpoint (`/api/auth.info`-style with `Authorization: Bearer`); a test could log in via cookie, capture the access token (if exposed), and hit the JWT endpoint with the same identity to assert parity.
+- `claim mapping SHALL be the same across the cookie flow and the JWT-bearer flow` — **Needs infra access** — same blocker as `id_token vs access_token audience` below: the Cognito access token is not exposed via oauth2-proxy on the current bundle (requires `pass_access_token = true` plus a downstream echo endpoint). The e2e test shape would log in via cookie, capture the access token, and replay it as `Authorization: Bearer` against an app that accepts both paths; without token exposure the bearer leg can't be reached.
 - `id_token vs access_token audience claim SHALL both be accepted` — **Needs infra access** — requires the JWT-bearer endpoint AND access token exposure.
-- `display name SHALL be derived without round-trip when possible` — **Genuine test gap** — could be tested by asserting the SPA shows the user's display name on first paint without firing a /me call.
+- `display name SHALL be derived without round-trip when possible` — **Infra-shaped** — the "when possible" qualifier makes this conditional on bundle config (header propagation of `X-Auth-Request-Preferred-Username` etc.) rather than on observable app behaviour. Both Outline and Twenty's SPAs make a first-paint user-info round-trip regardless of header presence, so the e2e signal collapses to "headers exist on the upstream response" — which is config-only.
 
 ## logout-flow
 
@@ -55,11 +55,10 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 
 ## workspace-auto-join
 
-- `auto-join SHALL run on every login, not just on user creation` — **Genuine test gap** — log in as an existing user previously removed from their workspace; assert they are re-joined on next login.
+- `auto-join SHALL run on every login, not just on user creation` — **Needs admin mutation** — the test shape requires removing the user from the workspace out-of-band (admin API or direct DB) between logins, then asserting the next login re-joins them. Without that mutation step, the observable collapses to "user is in workspace" — already covered by `tests/auth/workspace-auto-join-independence.spec.ts` for the static case. Admin removal needs either a workspace-Admin SSO identity (not currently provisioned) or instance-admin DB access from CI.
 - `auto-join SHALL skip when no workspace exists yet` — **Genuine test gap** — fresh bundle with no workspace; assert user is created but unbound.
 - `auto-join target SHALL be the oldest workspace` — **Genuine test gap** — create two workspaces with distinct creation times, log in as a fresh user, assert they land in the oldest.
 - `auto-join role SHALL be the app's regular-member role, not Admin or Guest` — **Partially covered** — `tests/apps/{outline,twenty,penpot,surfsense,pm}-admin.spec.ts` each assert NORMAL_USER (the auto-joined identity) lands without admin/owner rights on the respective app. Tags now in place. A direct DB-role probe is still future work.
-- `auto-join SHALL mark onboarding complete on the user profile` — **Genuine test gap** — assert profile shows onboarding skipped.
 - `per-app workspace model SHALL be documented in workspaces.md` — **Policy/doc** — doc requirement; verified by file existence in `awais786/sso-rules-moneta`.
 - `auto-join SHALL NOT leak across apps` — **Covered** — `tests/auth/workspace-auto-join-independence.spec.ts` probes each app's primary-workspace endpoint and asserts the returned identifier matches the bundle-configured value in `constants.ts` (`PLANE_WORKSPACE_ID`, `OUTLINE_TEAM_ID`, `PENPOT_TEAM_ID`). A regression where app A's storage backend gets pointed at app B's workspace store would surface as a mismatch. SurfSense omitted — its `/users/me` returns a per-user PK, not a workspace identifier; SurfSense membership is covered by `tests/apps/surfsense-admin.spec.ts`. (Prior shape — "no two apps share an identifier" — was vacuous against 4 independent UUID generators and is replaced with this positive-correlation shape.)
 
