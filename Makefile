@@ -37,8 +37,22 @@ audit: ## Run the spec-coverage audit (needs SPEC_DIR or SPEC_REPO_TOKEN)
 audit-paths: ## Audit doc cross-references — every relative file path in CLAUDE/README/skills/TRIAGE/docs must resolve
 	bash scripts/check-doc-paths.sh
 
-pre-commit: typecheck audit audit-paths ## Run typecheck + audits before pushing. Add a fast test subset locally if useful.
-	@echo "✓ typecheck + spec-coverage + doc-path audits clean"
+spec-coverage-doc: ## Regenerate docs/spec-coverage.md from the audit inputs (specs + skills + tags + deferred)
+	bash scripts/gen-spec-coverage.sh > docs/spec-coverage.md
+	@echo "✓ docs/spec-coverage.md regenerated"
+
+check-spec-coverage-doc-fresh: ## Verify docs/spec-coverage.md matches the generator (CI gate against drift)
+	@bash scripts/gen-spec-coverage.sh | diff -u docs/spec-coverage.md - || ( \
+		echo "" >&2; \
+		echo "ERROR: docs/spec-coverage.md is stale. Regenerate with:" >&2; \
+		echo "         make spec-coverage-doc" >&2; \
+		echo "       then commit the result." >&2; \
+		exit 1 \
+	)
+	@echo "✓ docs/spec-coverage.md is fresh"
+
+pre-commit: typecheck audit audit-paths check-spec-coverage-doc-fresh ## Run typecheck + audits before pushing. Add a fast test subset locally if useful.
+	@echo "✓ typecheck + spec-coverage + doc-path + spec-coverage-doc-fresh audits clean"
 
 test: ## Run full test suite
 	@# Guard against the common footgun: someone runs `make test ID=FOSSSMBBUN-112 FORCE=1`
