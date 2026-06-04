@@ -117,6 +117,14 @@ MUST be redirected to the IDP / auth wall. Workspace-scoped settings
 URLs are NOT in the ForwardAuth bypass list (unlike god-mode, which
 deliberately is — see god-mode skill above).
 
+#### Scenario: Cold visit to a workspace settings URL bounces to auth
+
+- **GIVEN** a fresh browser context with no `_oauth2_proxy` cookie
+- **WHEN** the context navigates to
+  `https://pm.${PLATFORM_DOMAIN}/<workspace-slug>/settings/members`
+- **THEN** the response chain ends at an `isAuthWall` host
+- **AND** Plane's members table does NOT render
+
 ### Requirement: auto-joined Member SHALL reach Members page but lack Add controls
 
 An SSO-authenticated user with `WorkspaceMember.role = 15` (Member)
@@ -130,6 +138,17 @@ a UI-observable level: both FOSS_USER and NORMAL_USER auto-join as
 Member (not Admin), so both see the page but neither can invite
 others. The Admin role is held only by the bootstrap `system-bot`
 (or whoever was promoted via `provision-admin/plane.py`).
+
+#### Scenario: Member sees the members page but no Add-member control
+
+- **GIVEN** an SSO-authenticated user with `WorkspaceMember.role = 15`
+  (Member) on the shared SMB workspace
+- **WHEN** the user navigates to
+  `/<PLANE_WORKSPACE_SLUG>/settings/members`
+- **THEN** the page renders the members table (not Plane's
+  "Workspace not found" shell)
+- **AND** the "Add member" / invite control is NOT in the DOM
+- **AND** the user's own row appears in the members table
 
 ### Requirement: workspace membership SHALL gate UI access cross-workspace
 
@@ -146,6 +165,18 @@ membership of the shared SMB workspace MUST NOT leak access to
 FOSS_USER's private workspace (`FOSS_USER_PRIVATE_WORKSPACE_SLUG`,
 default `aa`).
 
+#### Scenario: Non-member is refused at the UI layer (not bounced to IDP)
+
+- **GIVEN** an SSO-authenticated user (`NORMAL_USER`) who has NO
+  `WorkspaceMember` row on `FOSS_USER_PRIVATE_WORKSPACE_SLUG`
+- **WHEN** the user navigates to
+  `/<FOSS_USER_PRIVATE_WORKSPACE_SLUG>/`
+- **THEN** the page settles on Plane's host (no IDP bounce — the
+  user IS authenticated)
+- **AND** the page renders the "Workspace not found" shell
+- **AND** no workspace project / issue data from the other workspace
+  is visible
+
 ### Requirement: workspace membership SHALL gate API access cross-workspace
 
 The same workspace-membership check MUST be enforced at Plane's API
@@ -158,6 +189,19 @@ response (403 Forbidden or 404 Not Found are both acceptable —
 view-level `is_authenticated` check has replaced the
 workspace-membership check, opening every authenticated user to
 every workspace's data via direct API access.
+
+#### Scenario: Non-member's direct API call is refused at server
+
+- **GIVEN** an SSO-authenticated user (`NORMAL_USER`) who has NO
+  `WorkspaceMember` row on `FOSS_USER_PRIVATE_WORKSPACE_SLUG`
+- **WHEN** the user issues a direct API GET to
+  `/api/workspaces/<FOSS_USER_PRIVATE_WORKSPACE_SLUG>/projects/`
+  with the user's SSO cookie attached
+- **THEN** the response status is 4xx (403 OR 404 are both acceptable)
+- **AND** the response body does NOT contain project / issue data
+  from the other workspace
+- **AND** specifically the response is NOT 2xx (which would indicate
+  the membership check was bypassed)
 
 ## References
 

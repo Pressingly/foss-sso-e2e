@@ -144,6 +144,14 @@ A cold context (no SSO cookie) hitting any
 / auth wall. SurfSense's dashboard URLs are not in the ForwardAuth
 bypass list.
 
+#### Scenario: Cold visit to a SearchSpace dashboard URL bounces to auth
+
+- **GIVEN** a fresh browser context with no `_oauth2_proxy` cookie
+- **WHEN** the context navigates to
+  `https://research.${PLATFORM_DOMAIN}/dashboard/<SURFSENSE_SEARCH_SPACE_ID>/`
+- **THEN** the response chain ends at an `isAuthWall` host
+- **AND** the SurfSense dashboard does NOT render
+
 ### Requirement: non-Owner SHALL NOT see role-change buttons in Manage Members
 
 An SSO-authenticated user with `search_space_memberships.is_owner = false`
@@ -153,6 +161,19 @@ on a SearchSpace MUST be able to reach the Manage Members surface
 static text. This pins the server-side check in
 `surfsense_backend/app/routes/rbac_routes.py` that `MEMBERS_MANAGE_ROLES`
 is gated to Owners — the UI mirrors what the backend would refuse.
+
+#### Scenario: Non-Owner reaches Manage Members but role buttons are absent
+
+- **GIVEN** an SSO-authenticated user with
+  `search_space_memberships.is_owner = false` on the target SearchSpace
+- **WHEN** the user opens the SearchSpace dropdown and clicks
+  "Manage Members"
+- **THEN** the Manage Members surface renders (modal OR page,
+  per release)
+- **AND** the members list is visible
+- **AND** the count of role-change `<button>` elements next to
+  other-member rows is zero
+- **AND** the same other-members' roles render as static text instead
 
 ### Requirement: Owner SHALL see role-change buttons on other members' rows
 
@@ -164,6 +185,19 @@ positive side of the same gate — the Owner has the
 
 SurfSense (like Penpot) deliberately hides the self-row dropdown —
 the Owner sees the control next to OTHER members, not themselves.
+
+#### Scenario: Owner sees role-change buttons next to other members but not their own row
+
+- **GIVEN** an SSO-authenticated user with `is_owner = true` on the
+  target SearchSpace
+- **AND** the SearchSpace has at least one other member besides the Owner
+- **WHEN** the Owner opens the SearchSpace dropdown and clicks
+  "Manage Members"
+- **THEN** the Manage Members surface renders
+- **AND** a role-change `<button>` is visible next to at least one
+  other-member row
+- **AND** no role-change `<button>` is visible next to the Owner's
+  own row (self-row protection)
 
 ## References
 
