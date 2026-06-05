@@ -72,19 +72,24 @@ Auto-join MUST NOT promote the user to Admin and MUST NOT downgrade them to Gues
 
 After joining a user to the oldest workspace, the per-app user-profile row MUST be updated to reflect a completed onboarding state. The exact fields differ by app; for Plane the contract is:
 
-- `is_onboarded = True`
-- `last_workspace_id = <the joined workspace's id>`
-- `onboarding_step = { profile_complete: True, workspace_create: True, workspace_invite: True, workspace_join: True }`
+- `is_onboarded = True` — the load-bearing flag; Plane re-prompts onboarding when this is `False` regardless of the per-step sub-state.
+- `last_workspace_id = <the joined workspace's id>` — set so the user lands directly in their workspace on next login.
+- `onboarding_step.profile_complete = True`, `workspace_create = True`, `workspace_invite = True` — the three deterministic sub-step flags the auto-join code path sets.
+
+The `onboarding_step.workspace_join` sub-flag tracks Plane's invite-link join flow (a user clicking an invitation URL). Auto-join provisions the user directly through the bundle's system-bot path, NOT through the invite UI, so `workspace_join` legitimately stays `False` on SSO-auto-joined users. The contract is satisfied by `is_onboarded = True` (the load-bearing flag) plus the three deterministic sub-step flags.
 
 The update MUST only fire when the profile is not yet onboarded — this avoids a write on every authenticated request for already-onboarded users.
 
-#### Scenario: New user gets onboarding-complete flags
+#### Scenario: New SSO user gets onboarding-complete flags after auto-join
 
 - **GIVEN** a freshly-created user with `is_onboarded=False`
 - **WHEN** auto-join runs and joins them to the oldest workspace
 - **THEN** the user's profile row is updated to `is_onboarded=True`
 - **AND** `last_workspace_id` is set to the joined workspace's id
-- **AND** `onboarding_step` reflects every step complete
+- **AND** `onboarding_step.profile_complete = True`
+- **AND** `onboarding_step.workspace_create = True`
+- **AND** `onboarding_step.workspace_invite = True`
+- **AND** `onboarding_step.workspace_join` remains `False` (the user didn't go through an invite link — see requirement text above)
 
 #### Scenario: Already-onboarded user is not re-written
 
