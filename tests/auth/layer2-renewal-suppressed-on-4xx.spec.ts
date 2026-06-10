@@ -33,8 +33,9 @@ import { APP_URLS } from "../../constants";
 // (`session-id`). Each app gets a request that returns a clean 4xx while
 // routing through the same outer middleware stack that owns cookie
 // renewal — an unknown RPC command / API method / route. (Twenty and
-// SurfSense are out: Twenty renews via a localStorage token pair, not a
-// session cookie; SurfSense's cookie path mirrors Plane's Django stack.)
+// SurfSense are out: neither sets a per-app session cookie — Twenty uses
+// a localStorage token pair, and SurfSense authenticates off the
+// proxy-injected identity with no cookie of its own.)
 //
 // Plane note: its session cookie is `session-id` (hyphenated) and is set
 // only after an authenticated API call (ProxyAuthMiddleware creates the
