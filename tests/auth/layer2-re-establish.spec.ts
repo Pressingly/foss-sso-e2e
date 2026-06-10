@@ -1,8 +1,8 @@
 // Spec coverage for this file (see docs/spec-coverage.md):
 // @spec session-lifecycle#layer-2-expiry-while-layer-1-is-valid-shall-re-establish-session-from-headers
 
-import { test, expect } from "@playwright/test";
-import { APPS, AUTH_COOKIE, isAuthWall } from "../../constants";
+import { test, expect, type Response } from "@playwright/test";
+import { APPS, AUTH_COOKIE, IDP_REGEX, isAuthWall } from "../../constants";
 import { freshLogin } from "../lib/common-flows";
 
 // Layer-2 expiry is the most-hit edge case in a long-running browser
@@ -66,10 +66,29 @@ test.describe("Layer-2 expiry → silent re-establish (cleared app session, vali
             /* SPA navigated mid-evaluate; storage will get cleared on reload anyway */
           });
 
+        // Anti-vacuous: an app could "re-establish" by silently re-running
+        // the FULL SSO bounce (a Cognito/IDP round-trip), which also lands
+        // back on-host and would pass the host + not-auth-wall checks
+        // identically. The contract is re-establishment FROM HEADERS — no
+        // IDP bounce. Record any IDP-host hit during the reload so we can
+        // tell header re-establishment apart from a hidden re-login. With
+        // Layer-1 (`_oauth2_proxy`) intact, oauth2-proxy validates the
+        // cookie and injects `X-Auth-Request-*` without ever touching the
+        // IDP, so a clean re-establishment yields zero IDP hits.
+        const idpHits: string[] = [];
+        const onResponse = (r: Response) => {
+          if (IDP_REGEX.test(r.url())) idpHits.push(r.url());
+        };
+        page.on("response", onResponse);
+
         // Reload — this is the moment the spec requirement fires. The
         // app's middleware must re-establish the local session from
         // `X-Auth-Request-*` headers; no IDP bounce.
-        await page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 });
+        try {
+          await page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 });
+        } finally {
+          page.off("response", onResponse);
+        }
 
         const landed = page.url();
         expect(new URL(landed).hostname).toBe(new URL(app.url).hostname);
@@ -77,6 +96,10 @@ test.describe("Layer-2 expiry → silent re-establish (cleared app session, vali
           isAuthWall(landed),
           `${app.name} bounced to auth wall after Layer-2 clear — local session was not re-established from headers. Landed: ${landed}`
         ).toBe(false);
+        expect(
+          idpHits,
+          `${app.name} re-established by bouncing through the IDP (${idpHits[0] ?? ""}) instead of silently from X-Auth-Request-* headers — Layer-2 expiry must not trigger a fresh IDP login while Layer-1 is valid.`
+        ).toEqual([]);
       } finally {
         await context.close();
       }

@@ -14,10 +14,31 @@ PW_PROJECT ?= chromium
 HEADED ?= $(if $(CI),0,1)
 HEADED_FLAG := $(if $(filter 1,$(HEADED)),--headed)
 
-.PHONY: help install install-browsers install-browsers-ci typecheck audit pre-commit test test-auth test-apps test-flows test-security test-all-browsers test-spec test-one test-name report clean
+.PHONY: help setup install install-browsers install-browsers-ci typecheck audit pre-commit test test-auth test-apps test-flows test-security test-all-browsers test-spec test-one test-name report clean
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "; print "Usage: make <target>\n\nTargets:"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+setup: ## Local setup: install deps, install browsers, and copy .env.example → .env (if .env missing)
+	@if ! command -v "$(NPM)" >/dev/null 2>&1; then \
+		if command -v brew >/dev/null 2>&1; then \
+			echo "npm not found — installing Node via Homebrew..."; \
+			brew install node; \
+		else \
+			echo "ERROR: '$(NPM)' not found in PATH."; \
+			echo "  If you use nvm, run:  source ~/.nvm/nvm.sh && make setup"; \
+			echo "  Or override directly: NPM=\$$(which npm) make setup"; \
+			exit 1; \
+		fi; \
+	fi
+	$(NPM) install
+	$(NPM) run install:browsers
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "✓ .env created from .env.example — fill in FOSS_USER / FOSS_PASS before running tests"; \
+	else \
+		echo "✓ .env already exists, skipping copy"; \
+	fi
 
 install: ## Install Node dependencies
 	$(NPM) install

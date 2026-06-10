@@ -230,7 +230,22 @@ raw.describe("Twenty — admin-panel reachable for TWENTY_ADMIN_USER", () => {
       const adminApiResponse = await adminApiResponsePromise;
       const markerCount = await countAdminMarkers(page);
       const visible = await readVisibleText(page);
-      const apiLooksAdmin = !!adminApiResponse && adminApiResponse.status() < 400;
+      // A bare 2xx is NOT proof of admin. /admin-panel-graphql-api is a
+      // GraphQL endpoint that answers HTTP 200 even when AdminPanelGuard
+      // DENIES access — the denial rides in a top-level `errors[]` with a
+      // null `data`. So require a genuine data payload with no GraphQL
+      // errors before treating the API as an admin signal; otherwise a
+      // non-admin's 200-with-errors response would falsely satisfy this.
+      let apiLooksAdmin = false;
+      if (adminApiResponse && adminApiResponse.status() === 200) {
+        const body = (await adminApiResponse.json().catch(() => null)) as
+          | { data?: unknown; errors?: unknown[] }
+          | null;
+        apiLooksAdmin =
+          !!body &&
+          body.data != null &&
+          (!Array.isArray(body.errors) || body.errors.length === 0);
+      }
       const markerLooksAdmin = markerCount > 0;
       expect(
         markerLooksAdmin || apiLooksAdmin,

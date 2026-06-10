@@ -25,10 +25,10 @@ import { extractPenpotTransitField } from "../lib/penpot-transit";
 
 // Per-app session-cookie name patterns for theft checks in this spec.
 const APP_SESSION_COOKIE_PATTERNS: RegExp[] = [
-  /^sessionid$/i, // Django (Plane, SurfSense)
+  /^sessionid$/i, // Django (legacy single-word form)
   /^accessToken$/i, // Outline
   /^auth[-_]token$/i, // Penpot
-  /^session(_id|-id)?$/i, // generic
+  /^session(_id|-id)?$/i, // generic — matches Plane's `session-id`
   /^connect\.sid$/i, // Express
 ];
 
@@ -49,6 +49,52 @@ const APP_NAME_TO_URL: Record<string, string> = {
   SurfSense: APP_URLS.SurfSense,
   Twenty: APP_URLS.Twenty,
 };
+
+// Apps known to authenticate via a per-app session COOKIE, so a theft /
+// attribute check is meaningful and a session cookie MUST be present.
+// Twenty AND SurfSense are intentionally excluded: both authenticate off
+// the proxy-injected identity (Twenty via a localStorage token pair;
+// SurfSense's /users/me returns 200 from the `_oauth2_proxy` ForwardAuth
+// header and sets no cookie of its own — verified against the live
+// sandbox). For both, "no session cookie found" is correct-by-design. For
+// every app in THIS set, finding zero session cookies is a silent
+// coverage hole — the cookie was renamed out of
+// APP_SESSION_COOKIE_PATTERNS, or auth changed — so we fail loud instead
+// of skipping as "vacuously safe".
+const KNOWN_STATEFUL_APPS = new Set(["PM", "Outline", "Penpot"]);
+
+// Warm the per-app session cookie INTO the browser context's jar. Unlike
+// Penpot (whose SPA fires an authenticated RPC on page load), PM /
+// Outline / SurfSense create their session only on an explicit
+// authenticated API call and set the cookie on THAT response — a bare
+// page load leaves only `_oauth2_proxy`. `context.request` shares the
+// context cookie jar, so the session cookie lands where
+// `context.cookies()` can see it. Without this warm, the theft +
+// attribute assertions below silently skip for those three apps (the
+// exact coverage hole the KNOWN_STATEFUL_APPS guard now fails loud on).
+const WARM_SESSION: Record<string, (ctx: BrowserContext) => Promise<void>> = {
+  PM: async (ctx) => {
+    await ctx.request.get(`${APP_URLS.PM}/api/users/me/`).catch(() => {});
+  },
+  Outline: async (ctx) => {
+    await ctx.request
+      .post(`${APP_URLS.Outline}/api/auth.info`, {
+        data: {},
+        headers: { "content-type": "application/json" },
+      })
+      .catch(() => {});
+  },
+  // SurfSense omitted: it sets no per-app session cookie (proxy-header auth).
+  Penpot: async (ctx) => {
+    await ctx.request
+      .get(`${APP_URLS.Penpot}/api/rpc/command/get-profile`)
+      .catch(() => {});
+  },
+};
+
+async function warmSessionCookie(ctx: BrowserContext, appName: string): Promise<void> {
+  await WARM_SESSION[appName]?.(ctx);
+}
 
 // Per-app /me probes used in (A) to confirm that with the SSO cookie
 // the per-app cookies DO work — pre-condition for the test. Twenty
@@ -150,6 +196,9 @@ test.describe("Per-app session cookies alone are NOT standalone credentials", ()
 
       const baseUrl = APP_NAME_TO_URL[appName]!;
       await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      // Ensure the per-app session cookie is in the jar (these apps set it
+      // on an authenticated API call, not the bare page load).
+      await warmSessionCookie(context, String(appName));
 
       // Pre-condition: with the WHOLE cookie jar (SSO + per-app),
       // the probe succeeds and returns the worker user's email.
@@ -163,6 +212,12 @@ test.describe("Per-app session cookies alone are NOT standalone credentials", ()
       const all = await context.cookies(baseUrl);
       const sessionCookies = all.filter((c) => isAppSessionCookie(c.name));
       if (sessionCookies.length === 0) {
+        if (KNOWN_STATEFUL_APPS.has(String(appName))) {
+          expect(
+            sessionCookies.length,
+            `${appName}: expected at least one per-app session cookie to steal but found none on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. ${appName} is known cookie-stateful — zero matches means its session cookie was renamed out of APP_SESSION_COOKIE_PATTERNS (a silent coverage hole), not that there is nothing to steal.`,
+          ).toBeGreaterThan(0);
+        }
         test.skip(
           true,
           `${appName}: no app session cookies on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. App may use header-only auth (vacuously safe — nothing to steal).`,
@@ -215,10 +270,19 @@ test.describe("Per-app session cookie attributes (defenses against theft)", () =
 
       const baseUrl = APP_NAME_TO_URL[appName]!;
       await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      // Ensure the per-app session cookie is in the jar (these apps set it
+      // on an authenticated API call, not the bare page load).
+      await warmSessionCookie(context, String(appName));
 
       const all = await context.cookies(baseUrl);
       const sessionCookies = all.filter((c) => isAppSessionCookie(c.name));
       if (sessionCookies.length === 0) {
+        if (KNOWN_STATEFUL_APPS.has(String(appName))) {
+          expect(
+            sessionCookies.length,
+            `${appName}: expected at least one per-app session cookie to inspect but found none on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. ${appName} is known cookie-stateful — zero matches means its session cookie was renamed out of APP_SESSION_COOKIE_PATTERNS, silently hiding the hardening-attribute check.`,
+          ).toBeGreaterThan(0);
+        }
         test.skip(
           true,
           `${appName}: no app session cookies matched APP_SESSION_COOKIE_PATTERNS on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. If header-only auth, vacuously safe.`,

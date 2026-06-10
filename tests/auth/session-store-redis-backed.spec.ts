@@ -80,25 +80,56 @@ test.describe("oauth2-proxy session store — Redis-backed (cookie stays small)"
     //    A Redis-backed store decouples the cookie value from the
     //    session payload: the value bytes stay identical.
     for (const app of APPS) {
-      await page.goto(app.url, {
-        waitUntil: "domcontentloaded",
-        timeout: 30_000,
-      });
+      // Twenty's top-level navigations can hit net::ERR_ABORTED (its
+      // GraphQL websocket / SPA bootstrap aborts the document request) —
+      // see CLAUDE.md. We only need the request to reach the gateway so
+      // the SSO cookie round-trips through each per-app middleware;
+      // `commit` is enough and an aborted navigation still exercised the
+      // server side. Ignore the abort and continue — the cookie
+      // assertions below are the point.
+      await page
+        .goto(app.url, { waitUntil: "commit", timeout: 30_000 })
+        .catch((e: unknown) => {
+          if (!String(e).includes("ERR_ABORTED")) throw e;
+        });
     }
 
-    const cookiesAfter = (await context.cookies()).filter(
-      (c) => c.name === AUTH_COOKIE,
+    const allAfter = (await context.cookies()).filter((c) =>
+      c.name.startsWith(AUTH_COOKIE),
     );
+    const cookiesAfter = allAfter.filter((c) => c.name === AUTH_COOKIE);
     expect(
       cookiesAfter.length,
       `${AUTH_COOKIE} cookie disappeared during cross-app navigation`,
     ).toBe(1);
 
+    // Re-check split-form AFTER exercising every per-app middleware. The
+    // pre-navigation check (step 2) can only catch a session that was
+    // already oversized at login; this catches a cookie-backed store that
+    // crosses the 4KB limit *while accumulating claim data during
+    // cross-app navigation* — it would emit `${AUTH_COOKIE}_0`, `_1`, ...
+    // here even if it started as a single cookie. A Redis-backed store
+    // never grows the cookie, so this stays empty. This is the genuinely
+    // falsifiable post-navigation signal (the steady-state size-equality
+    // check below cannot grow a worker session that is already populated).
+    const splitFormAfter = allAfter.filter((c) =>
+      /_\d+$/.test(c.name.slice(AUTH_COOKIE.length)),
+    );
+    expect(
+      splitFormAfter.map((c) => c.name),
+      `oauth2-proxy emitted split-form session cookies during cross-app ` +
+        `navigation — the session payload is accumulating in the cookie, ` +
+        `not in Redis. Found: ${splitFormAfter.map((c) => c.name).join(", ")}`,
+    ).toEqual([]);
+
+    // The SSO cookie value must stay byte-identical: a cookie-backed store
+    // would re-encode / refresh the claim payload as the per-app
+    // middlewares round-trip identity, changing the value length.
     const sizeAfter = cookiesAfter[0]!.value.length;
     expect(
       sizeAfter,
-      `${AUTH_COOKIE} grew from ${sizeBefore} to ${sizeAfter} bytes across ` +
-        `app navigation — session payload accumulating in the cookie ` +
+      `${AUTH_COOKIE} changed from ${sizeBefore} to ${sizeAfter} bytes across ` +
+        `app navigation — session payload mutating in the cookie ` +
         `suggests a cookie-based store, not Redis`,
     ).toBe(sizeBefore);
   });
