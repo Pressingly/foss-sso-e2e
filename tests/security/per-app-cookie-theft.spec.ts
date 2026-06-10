@@ -50,6 +50,16 @@ const APP_NAME_TO_URL: Record<string, string> = {
   Twenty: APP_URLS.Twenty,
 };
 
+// Apps known to authenticate via a per-app session COOKIE, so a theft /
+// attribute check is meaningful and a session cookie MUST be present.
+// Twenty is intentionally excluded: it authenticates via a localStorage
+// token pair, not a session cookie, so "no session cookie found" is
+// correct-by-design for Twenty only. For every app in this set, finding
+// zero session cookies is a silent coverage hole — the cookie was renamed
+// out of APP_SESSION_COOKIE_PATTERNS, or auth changed — so we fail loud
+// instead of skipping as "vacuously safe".
+const KNOWN_STATEFUL_APPS = new Set(["PM", "Outline", "Penpot", "SurfSense"]);
+
 // Per-app /me probes used in (A) to confirm that with the SSO cookie
 // the per-app cookies DO work — pre-condition for the test. Twenty
 // excluded (no stable cookie-authed /me endpoint).
@@ -163,6 +173,12 @@ test.describe("Per-app session cookies alone are NOT standalone credentials", ()
       const all = await context.cookies(baseUrl);
       const sessionCookies = all.filter((c) => isAppSessionCookie(c.name));
       if (sessionCookies.length === 0) {
+        if (KNOWN_STATEFUL_APPS.has(String(appName))) {
+          expect(
+            sessionCookies.length,
+            `${appName}: expected at least one per-app session cookie to steal but found none on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. ${appName} is known cookie-stateful — zero matches means its session cookie was renamed out of APP_SESSION_COOKIE_PATTERNS (a silent coverage hole), not that there is nothing to steal.`,
+          ).toBeGreaterThan(0);
+        }
         test.skip(
           true,
           `${appName}: no app session cookies on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. App may use header-only auth (vacuously safe — nothing to steal).`,
@@ -219,6 +235,12 @@ test.describe("Per-app session cookie attributes (defenses against theft)", () =
       const all = await context.cookies(baseUrl);
       const sessionCookies = all.filter((c) => isAppSessionCookie(c.name));
       if (sessionCookies.length === 0) {
+        if (KNOWN_STATEFUL_APPS.has(String(appName))) {
+          expect(
+            sessionCookies.length,
+            `${appName}: expected at least one per-app session cookie to inspect but found none on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. ${appName} is known cookie-stateful — zero matches means its session cookie was renamed out of APP_SESSION_COOKIE_PATTERNS, silently hiding the hardening-attribute check.`,
+          ).toBeGreaterThan(0);
+        }
         test.skip(
           true,
           `${appName}: no app session cookies matched APP_SESSION_COOKIE_PATTERNS on ${baseUrl}. Cookie names: ${all.map((c) => c.name).join(", ")}. If header-only auth, vacuously safe.`,

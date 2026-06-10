@@ -169,8 +169,10 @@ test.describe("Plane (PM) — god-mode bypasses ForwardAuth", () => {
         isAuthWall(page.url()),
         `/auth/get-csrf-token bounced to auth wall: ${page.url()}`
       ).toBe(false);
-      // Endpoint should answer (any 2xx — typically returns JSON {csrf_token: ...}).
-      expect(res?.status(), "CSRF endpoint should not 4xx/5xx").toBeLessThan(400);
+      // Endpoint returns 200 with JSON {csrf_token: ...}. Pin it exactly:
+      // accepting any < 400 would let a 3xx redirect INTO the auth chain
+      // pass as a clean bypass (the very thing this test guards against).
+      expect(res?.status(), "CSRF endpoint should return 200 (JSON {csrf_token})").toBe(200);
     } finally {
       await ctx.close();
     }

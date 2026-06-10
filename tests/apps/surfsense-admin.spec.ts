@@ -145,9 +145,24 @@ test.describe("SurfSense — admin (FOSS_USER, Owner) reaches owner-only control
     // rows. With 2 members in the sandbox SearchSpace, count should
     // be ≥ 1 (the non-owner row). Page-scope the query (no longer
     // a dialog).
+    const roleChangeButtons = page.getByRole("button", {
+      name: /^(owner|editor|viewer|admin)$/i,
+    });
+    // getByRole("button") is itself the owner/non-owner discriminator:
+    // for an Editor/Viewer these role labels render as static text (no
+    // button role) and never match here — the non-admin test above
+    // asserts exactly that (toHaveCount(0)).
     await expect(
-      page.getByRole("button", { name: /^(owner|editor|viewer|admin)$/i }),
-      "Owner must see at least one role-change button (other members' role labels are clickable)"
+      roleChangeButtons,
+      "Owner must see at least one role-change button (other members' role labels render as clickable buttons; static text for non-owners)"
     ).not.toHaveCount(0);
+    // Anti-vacuous: prove the matched control is an ACTIONABLE role-change
+    // affordance, not a disabled/decorative element. A non-owner never
+    // reaches an enabled role button on another member's row, so requiring
+    // `enabled` tightens the positive side of the contract.
+    await expect(
+      roleChangeButtons.first(),
+      "Owner's role-change button must be enabled (actionable), not a disabled or static label"
+    ).toBeEnabled();
   });
 });
