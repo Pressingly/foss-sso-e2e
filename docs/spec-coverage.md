@@ -73,7 +73,7 @@ Playwright suite. Every requirement maps to either a covering test
 | simultaneous expiry of both layers SHALL redirect to mPass login | ✅ | `tests/auth/session-lifecycle.spec.ts` |
 | mPass-side session revocation SHALL be honoured on next refresh | ⚠️ Deferred | — |
 | per-app session TTLs SHALL be uniformly configurable | ⚠️ Deferred | — |
-| Layer-2 session renewal SHALL be guarded against three regression paths | 🟡 Partial | `tests/auth/layer2-renewal-suppressed-on-4xx.spec.ts` |
+| Layer-2 session renewal SHALL be guarded against three regression paths | ✅ | `tests/auth/layer2-renewal-suppressed-on-4xx.spec.ts` |
 | bridge state TTL SHALL be 3 minutes | ⚠️ Deferred | — |
 | only one OAuth login flow SHALL be in progress per browser at a time | ✅ | `tests/bugs/bug_dc998ba0.spec.ts` |
 

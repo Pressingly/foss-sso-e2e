@@ -80,10 +80,18 @@ test.describe("oauth2-proxy session store — Redis-backed (cookie stays small)"
     //    A Redis-backed store decouples the cookie value from the
     //    session payload: the value bytes stay identical.
     for (const app of APPS) {
-      await page.goto(app.url, {
-        waitUntil: "domcontentloaded",
-        timeout: 30_000,
-      });
+      // Twenty's top-level navigations can hit net::ERR_ABORTED (its
+      // GraphQL websocket / SPA bootstrap aborts the document request) —
+      // see CLAUDE.md. We only need the request to reach the gateway so
+      // the SSO cookie round-trips through each per-app middleware;
+      // `commit` is enough and an aborted navigation still exercised the
+      // server side. Ignore the abort and continue — the cookie
+      // assertions below are the point.
+      await page
+        .goto(app.url, { waitUntil: "commit", timeout: 30_000 })
+        .catch((e: unknown) => {
+          if (!String(e).includes("ERR_ABORTED")) throw e;
+        });
     }
 
     const allAfter = (await context.cookies()).filter((c) =>

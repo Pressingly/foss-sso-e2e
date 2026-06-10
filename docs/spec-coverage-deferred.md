@@ -37,7 +37,7 @@ Format: `<module>#<requirement>` — `<category>` — short rationale.
 - `Layer 1 expiry shall force a fresh Cognito login` — **Genuine test gap** — same TTL constraint (would need a short-TTL bundle or time-fast-forward to expire Layer 1 deliberately).
 - `mPass-side session revocation SHALL be honoured on next refresh` — **Cognito-side** — requires admin API call to revoke a refresh token; not in CI scope today.
 - `per-app session TTLs SHALL be uniformly configurable` — **Infra-only**.
-- `Layer-2 session renewal SHALL be guarded against three regression paths` — **Partially covered** — `tests/auth/layer2-renewal-suppressed-on-4xx.spec.ts` pins the Penpot/`auth-token` case (4xx response must carry no fresh session cookie). Extending to Outline (`accessToken`) and Plane (`sessionid`) is the same shape with different per-app cookie names.
+- `Layer-2 session renewal SHALL be guarded against three regression paths` — **Covered** — `tests/auth/layer2-renewal-suppressed-on-4xx.spec.ts` pins the 4xx-must-carry-no-fresh-session-cookie invariant across all three cookie-stateful apps: Penpot (`auth-token`), Outline (`accessToken`), and Plane (`session-id`), via an unknown RPC command / API method / route respectively. Twenty (localStorage token pair, no session cookie) and SurfSense (Django path mirrors Plane) are out of scope. The time-based "stale cookie past renewal threshold" axis remains a TTL-bundle gap.
 - `bridge state TTL SHALL be 3 minutes` — **Genuine test gap** — would need to wait 3 minutes or mock the TTL.
 
 ## cognito-claim-mapping
